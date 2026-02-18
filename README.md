@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ```markdown
 # ✨ MCP: Protocolo e Ferramentas de Controle para VS Code
 
@@ -153,3 +154,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+=======
+# Quitto_Server
+Home Lab and MCP Server
+>>>>>>> c52c9778db313d792e1d1b8b45dfa7974ef5c003
