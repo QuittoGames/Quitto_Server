@@ -144,17 +144,180 @@ copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
 The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+<div align="center">
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+# ✨ MCP — Quitto Server
+
+### Terminal-first tools & local control for Home-Lab
+
+[![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](https://opensource.org/licenses/MIT)
+
+Projeto para orquestração e controle local baseado no "Master Control Protocol" (MCP). Ideal para home-labs e ambientes de desenvolvimento que precisam de serviços controláveis localmente e integráveis ao fluxo de trabalho.
+
+[Features](#features) • [Arquitetura](#arquitetura) • [Instalação](#instalação) • [Configuração](#configuração) • [Uso](#uso) • [Contribuição](#contribuição) • [Licença](#licença)
+
+</div>
+
+---
+
+## Features
+
+- Performance e simplicidade: serviços em Python com organização modular.
+- Protocolo MCP: mensagens padronizadas para coordenação entre componentes.
+- Ferramentas de criação de projetos e setup (scripts em `src/Services/SetupProjectService.py`).
+- Interface web mínima em `web/` para visualização e controle rápido.
+- Repositórios locais para persistência leve (pasta `Repository/`).
+
+## Arquitetura
+
 ```
-=======
-# Quitto_Server
-Home Lab and MCP Server
->>>>>>> c52c9778db313d792e1d1b8b45dfa7974ef5c003
+┌─────────────────────────────────────────────┐
+│                   Usuário                    │
+└──────────────────┬──────────────────────────┘
+           │  Interação (CLI / Web)
+    ┌──────────▼─────────────┐
+    │    Front / Web UI       │
+    │    (web/)               │
+    └──────────┬─────────────┘
+           │ HTTP / JS
+    ┌──────────▼─────────────┐
+    │    Services (Python)   │
+    │    (src/Services/)     │
+    │  • WebService          │
+    │  • MCPService          │
+    │  • MachineService      │
+    └──────────┬─────────────┘
+           │ Internal calls / DB
+    ┌──────────▼─────────────┐
+    │   Repositories / DB    │
+    │   (Repository/, DB/)   │
+    └──────────┬─────────────┘
+           │ Models
+    ┌──────────▼─────────────┐
+    │      Domain Models     │
+    │      (models/)         │
+    └────────────────────────┘
+```
+
+### Componentes principais
+
+- `src/Services/` — implementação de serviços e orchestrators.
+- `Repository/` — abstrações de persistência (MachineRepository, UserRepository).
+- `models/` — classes de domínio (`Machine`, `User`, `Agent`).
+- `web/` — frontend estático (HTML/CSS/JS) para operações básicas.
+
+## Instalação
+
+### Pré-requisitos
+
+- Python 3.8+
+- Git
+
+### Passos rápidos
+
+```bash
+# clonar
+git clone https://github.com/yourusername/mcp.git
+cd mcp
+
+# criar e ativar venv
+python -m venv .venv
+source .venv/bin/activate
+
+# instalar dependências (se existir requirements)
+pip install -r requirements.txt || true
+```
+
+## Configuração
+
+Alguns serviços leem variáveis de ambiente ou arquivos locais. Exemplos:
+
+- `DB/` pode ser configurado para caminho local (ver `src/DB/DBConnection.py`).
+- Para serviços web, edite portas e settings em `src/Services/WebService.py` quando aplicável.
+
+Recomendação: crie um `.env` na raiz com variáveis locais (não commitar):
+
+```env
+# Exemplo
+MCP_ENV=development
+DB_PATH=./DB/data.sqlite
+WEB_PORT=8080
+```
+
+## Uso
+
+Executar o entrypoint principal (exemplo):
+
+```bash
+python src/index.py
+```
+
+Serviços específicos podem ter seus próprios scripts em `src/Services/`.
+
+### Interface web
+
+Abra `web/index.html` via servidor estático (ou rode `WebService` para servir os arquivos).
+
+## Desenvolvimento
+
+Estrutura resumida:
+
+```
+src/
+├── Services/
+│   ├── MCP/
+│   ├── MachineService.py
+│   └── WebService.py
+├── DB/
+└── index.py
+models/
+Repository/
+web/
+```
+
+Dependências de desenvolvimento e execução estão em `requirements.txt` quando presentes.
+
+## Contribuição
+
+Contribuições são bem-vindas. Fluxo sugerido:
+
+1. Fork o repositório
+2. Crie branch: `git checkout -b feature/nome-da-feature`
+3. Faça commits atômicos
+4. Abra PR descrevendo mudanças e motivação
+
+Inclua testes quando possível e atualize esta documentação.
+
+## Troubleshooting
+
+Erro comum: serviço não inicia
+
+- Verifique portas em uso (`lsof -i :8080`).
+- Verifique `DB_PATH` e permissões de escrita.
+
+Erro de importação
+
+- Confirme ativação do venv e instalação de dependências.
+
+## Links úteis
+
+- Python: https://www.python.org/
+- VS Code: https://code.visualstudio.com/
+
+## Licença
+
+Licenciado sob MIT — veja o arquivo `LICENSE`.
+
+---
+
+Se quiser, adapto este `README.md` para:
+
+1. Versão em inglês
+2. Adicionar badges de CI/cobertura
+3. Tornar o quickstart específico para cada serviço
+
+Diga qual dessas opções prefere e eu aplico a seguir.
+---
+
+Se quiser, faço uma versão em inglês, adiciono badges extras (CI/cobertura) ou adapto o conteúdo para publicar como release/README mais curto para o GitHub.
