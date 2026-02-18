@@ -1,0 +1,93 @@
+/* Estilos para a página de Gerenciamento de Máquinas */
+
+.fm-table {
+    border-collapse: collapse;
+    width: 100%;
+    background: transparent;
+}
+.fm-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--card-bg);
+    z-index: 2;
+}
+.fm-table th, .fm-table td {
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.6rem 0.8rem;
+    text-align: left;
+    font-size: 0.95em;
+}
+.fm-table th {
+    background: rgba(59, 130, 246, 0.08);
+    color: var(--accent-blue);
+    text-transform: uppercase;
+    font-size: 0.8em;
+    letter-spacing: 1px;
+    font-weight: 600;
+}
+.fm-table tr:hover td {
+    background: rgba(59, 130, 246, 0.04);
+}
+
+.wol-section {
+    margin-top: 1rem;
+    padding: 1rem 1.5rem;
+    background: var(--card-bg);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.status-indicator.online {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    margin-right: 0.5rem;
+}
+
+.wol-section label {
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-right: 0.5rem;
+}
+
+.wol-section select {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--input-bg);
+    color: var(--text-primary);
+    margin-right: 0.5rem;
+    font-size: 1em;
+}
+
+/* target the select with id="wol-machine" so options inherit readable color */
+#wol-machine option {
+    color: var(--text-primary);
+}
+
+.wol-section button {
+    padding: 0.5rem 1.2rem;
+    background: var(--accent-blue);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1em;
+    transition: background 0.3s;
+}
+
+.wol-section button:hover {
+    background: var(--accent-blue-hover, #2563eb);
+}
+
+@media (max-width: 900px) {
+    .fm-layout { flex-direction: column; }
+    .fm-sidebar { width: 100%; flex-direction: row; gap: 0.5rem; }
+    .fm-main { width: 100%; }
+    .wol-section { flex-direction: column; align-items: flex-start; }
+}
