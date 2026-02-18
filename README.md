@@ -11,21 +11,30 @@
 
 ---
 
+
 Descrição
 
-MCP (Master Control Protocol) é uma base modular para orquestração, controle e automação em ambientes locais e laboratórios (home-lab). O projeto fornece serviços, repositórios e utilitários para criar, testar e operar componentes controlados por um protocolo padronizado, com opções de interface web estática e execução por linha de comando.
+MCP (Master Control Protocol) é uma plataforma modular para orquestração, controle e automação em ambientes locais e laboratórios (home-lab). O repositório inclui um servidor principal — o MCP Server — que implementa o Master Control Protocol e atua como orquestrador central do ecossistema: gerencia modelos de contexto, expõe APIs de controle, coordena serviços e mantém a coesão entre componentes.
+
+O projeto oferece serviços, repositórios e utilitários para criar, testar e operar componentes controlados por esse protocolo, com uma interface web estática e ferramentas de linha de comando.
 
 Índice
 
-- [Funcionalidades](#funcionalidades)
-- [Arquitetura e componentes](#arquitetura-e-componentes)
-- [Instalação rápida](#instalação-rápida)
-- [Configuração](#configuração)
-- [Execução e uso](#execução-e-uso)
-- [Desenvolvimento](#desenvolvimento)
-- [Contribuição](#contribuição)
-- [Resolução de problemas](#resolução-de-problemas)
-- [Licença](#licença)
+- [MCP — Quitto Server](#mcp--quitto-server)
+    - [Plataforma de orquestração e controle local (Master Control Protocol)](#plataforma-de-orquestração-e-controle-local-master-control-protocol)
+  - [Funcionalidades](#funcionalidades)
+  - [Arquitetura e componentes](#arquitetura-e-componentes)
+  - [Definição técnica — separando MCP e MCP Server](#definição-técnica--separando-mcp-e-mcp-server)
+    - [Onde ver o código (arquivos de referência)](#onde-ver-o-código-arquivos-de-referência)
+    - [Exemplo rápido: seguir o fluxo de uma requisição](#exemplo-rápido-seguir-o-fluxo-de-uma-requisição)
+  - [Instalação rápida](#instalação-rápida)
+  - [Configuração](#configuração)
+  - [Execução e uso](#execução-e-uso)
+  - [Desenvolvimento](#desenvolvimento)
+  - [Contribuição](#contribuição)
+  - [Resolução de problemas](#resolução-de-problemas)
+  - [Links úteis](#links-úteis)
+  - [Licença](#licença)
 
 ## Funcionalidades
 
@@ -40,6 +49,8 @@ MCP (Master Control Protocol) é uma base modular para orquestração, controle 
 ```
 Usuario  <--->  Web UI / CLI
                   |
+               Server (orquestrador)
+                  |
                Services (src/Services/)
                   |
         Repositories / DB (Repository/, DB/)
@@ -51,9 +62,54 @@ Principais diretórios:
 
 - `src/` — código-fonte principal (serviços, orquestradores, scripts de entrypoint).
 - `src/Services/` — serviços implementados (MCPService, MachineService, WebService, etc.).
+- `src/server.py` or `src/index.py` — entrypoint(s) do servidor principal (MCP Server / orquestrador).
 - `models/` — modelos de domínio (`User`, `Machine`, `Agent`).
 - `Repository/` — implementações de persistência e repositórios.
 - `web/` — arquivos estáticos (HTML/CSS/JS) para controle/visualização mínima.
+
+Servidor principal (MCP Server)
+
+O MCP Server implementa o Model Context Protocol e tem as responsabilidades principais:
+
+- Gerenciar contextos de modelos e o estado global do ecossistema.
+- Expor uma API de controle para clientes (CLI, UI, integrações externas).
+- Orquestrar comunicação entre serviços e repositórios.
+- Autenticar/autorizar requisições e aplicar políticas de operação.
+
+Em ambientes de produção ou testes avançados, o MCP Server é o componente central que coordena operações de alto nível.
+
+## Definição técnica — separando MCP e MCP Server
+
+Para evitar ambiguidade: o termo "MCP" refere-se aqui ao protocolo (Master Control Protocol) — um conjunto de mensagens, comandos e modelos de contexto usados para coordenar os componentes. O "MCP Server" é a implementação concreta desse protocolo no repositório e o orquestrador que processa mensagens, mantém estado e expõe APIs.
+
+- MCP (Master Control Protocol): especificação lógica — formatos de mensagem, contratos dos modelos de contexto, comandos e eventos.
+- MCP Server: implementação do protocolo, responsável por interpretar mensagens MCP, aplicar regras de negócio, coordenar serviços e persistir estado.
+
+### Onde ver o código (arquivos de referência)
+
+- Entrypoint / orquestrador: [src/index.py](src/index.py)
+- Implementação do protocolo MCP: [src/Services/MCP/MCPService.py](src/Services/MCP/MCPService.py)
+- Estado em memória / gerenciamento de contexto: [src/Services/MCP/MemoryService.py](src/Services/MCP/MemoryService.py)
+- Serviço web (frontend / APIs): [src/Services/WebService.py](src/Services/WebService.py)
+- Conexão com banco/armazenamento: [src/DB/DBConnection.py](src/DB/DBConnection.py)
+- Repositórios de exemplo (máquinas, usuários): [Repository/Machines/MachineRepository.py](Repository/Machines/MachineRepository.py) e [Repository/User/UserRepository.py](Repository/User/UserRepository.py)
+
+Leia os arquivos acima para acompanhar como o protocolo é definido (tipos, mensagens) e como o servidor processa essas mensagens em runtime.
+
+### Exemplo rápido: seguir o fluxo de uma requisição
+
+1. Cliente (CLI ou Web UI) envia uma requisição para criar/atualizar um contexto.
+2. O MCP Server (entrypoint) recebe a requisição e a encaminha para `MCPService`.
+3. `MCPService` valida a mensagem segundo o protocolo MCP e usa `MemoryService` / repositórios para atualizar o estado.
+4. Resultado é persistido via `src/DB/DBConnection.py` / `Repository/*` e uma resposta é retornada ao cliente.
+
+Para testar localmente, inicie o servidor e observe logs/prints no fluxo acima:
+
+```bash
+python src/index.py
+```
+
+Em seguida, abra `web/index.html` ou use um cliente HTTP/CLI para enviar comandos ao MCP Server.
 
 ## Instalação rápida
 
@@ -90,15 +146,23 @@ Verifique `src/DB/DBConnection.py` e `src/Services/*` para parâmetros específi
 
 ## Execução e uso
 
-Entrypoint genérico (exemplo):
+Entrypoint genérico / servidor principal
+
+O servidor principal (orquestrador MCP) pode ser iniciado a partir do entrypoint do projeto. Exemplos:
 
 ```bash
+# Inicia o servidor principal (se presente)
+python src/server.py
+
+# Alternativa: alguns distribuídos usam index.py como entrypoint
 python src/index.py
 ```
 
-Serviços individuais podem ser executados diretamente (consulte cada módulo em `src/Services/`).
+Serviços individuais podem ser executados diretamente para testes isolados (consulte cada módulo em `src/Services/`).
 
-Interface web (estática): abra `web/index.html` ou inicie `WebService` para servir os arquivos via HTTP.
+Interface web (estática)
+
+Abra `web/index.html` via servidor estático simples ou execute `WebService` para servir os arquivos via HTTP, permitindo que o MCP Server sirva APIs e o frontend consuma dados.
 
 ## Desenvolvimento
 
