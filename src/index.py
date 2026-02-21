@@ -6,15 +6,26 @@ import asyncio
 import logging
 import os
 from starlette.middleware.sessions import SessionMiddleware
+data_local = data()
+
+
+def configure_logging():
+    """Configure console logging with a compact, readable format."""
+    root = logging.getLogger()
+    # remove existing handlers to avoid duplicates
+    for h in list(root.handlers):
+        root.removeHandler(h)
+    ch = logging.StreamHandler()
+    fmt = logging.Formatter("%(asctime)s %(levelname)s: %(message)s", "%Y-%m-%d %H:%M:%S")
+    ch.setFormatter(fmt)
+    root.addHandler(ch)
+    level = logging.DEBUG if getattr(data_local, "Debug", False) else logging.INFO
+    root.setLevel(level)
+
+
+configure_logging()
 
 logger = logging.getLogger("server")
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
-
-
-data_local = data()
 app = FastAPI(title="Quitto MCP Servers")
 app.add_middleware(
     SessionMiddleware,

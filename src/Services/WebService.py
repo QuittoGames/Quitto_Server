@@ -25,42 +25,78 @@ class WebService:
     @routerWeb.get("/info/system")
     def info_system():
         """Info geral do sistema operacional"""
-        return SystemInfo.system()
+        logger.info("/info/system requested")
+        result = SystemInfo.system()
+        if isinstance(result, dict):
+            logger.debug("system info keys: %s", list(result.keys()))
+        else:
+            logger.debug("system info: %s", type(result).__name__)
+        return result
     
     @routerWeb.get("/info/python")
     def info_python():
         """Info do Python"""
-        return SystemInfo.python()
+        logger.info("/info/python requested")
+        result = SystemInfo.python()
+        logger.debug("python info keys: %s", list(result.keys()) if isinstance(result, dict) else type(result).__name__)
+        return result
     
     @routerWeb.get("/info/disk")
     def info_disk():
         """Info dos discos"""
-        return SystemInfo.disk()
+        logger.info("/info/disk requested")
+        result = SystemInfo.disk()
+        if isinstance(result, dict) and "disks" in result:
+            logger.debug("disk count: %d", len(result.get("disks", [])))
+        else:
+            logger.debug("disk info: %s", type(result).__name__)
+        return result
     
     @routerWeb.get("/info/network")
     def info_network():
         """Info de rede"""
-        return SystemInfo.network()
+        logger.info("/info/network requested")
+        result = SystemInfo.network()
+        logger.debug("network summary: hostname=%s local_ip=%s", result.get("hostname"), result.get("local_ip") if isinstance(result, dict) else "N/A")
+        return result
     
     @routerWeb.get("/info/datetime")
     def info_datetime():
         """Data e hora atual"""
-        return SystemInfo.datetime_info()
+        logger.info("/info/datetime requested")
+        result = SystemInfo.datetime_info()
+        logger.debug("datetime summary: local=%s utc=%s", result.get("local"), result.get("utc") if isinstance(result, dict) else "N/A")
+        return result
     
     @routerWeb.get("/info/env")
     def info_env():
         """Variáveis de ambiente"""
-        return SystemInfo.env()
+        logger.info("/info/env requested")
+        result = SystemInfo.env()
+        if isinstance(result, dict):
+            logger.debug("env keys: %s", list(result.keys()))
+        else:
+            logger.debug("env info: %s", type(result).__name__)
+        return result
     
     @routerWeb.get("/info/process")
     def info_process():
         """Info do processo"""
-        return SystemInfo.process()
+        logger.info("/info/process requested")
+        result = SystemInfo.process()
+        logger.debug("process summary: pid=%s cwd=%s", result.get("pid") if isinstance(result, dict) else "N/A", result.get("cwd") if isinstance(result, dict) else "N/A")
+        return result
     
     @routerWeb.get("/info/all")
     def info_all():
         """TUDO junto - info completa do servidor"""
-        return SystemInfo.all()
+        logger.info("/info/all requested")
+        result = SystemInfo.all()
+        if isinstance(result, dict):
+            logger.debug("all info sections: %s", list(result.keys()))
+        else:
+            logger.debug("all system info: %s", type(result).__name__)
+        return result
     
     # ─── Utilitários ────────────────────────────────────────────
     

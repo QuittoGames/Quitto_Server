@@ -56,3 +56,43 @@ class MachineService:
             }
             for m in machines
         ]
+
+    @routerMachine.post("/wake_on_lan")
+    def wake_on_lan(id_machine:int) -> dict:
+        """
+        Sends a Wake-on-LAN (WOL) packet to the machine identified by the given ID.
+
+        Args:
+            id_machine (int): The unique identifier of the machine to wake.
+
+        Returns:
+            dict: A dictionary containing the result of the WOL operation.
+
+        Raises:
+            HTTPException: If the machine ID is not provided (None), raises a 404 error with an empty detail message.
+        """
+        # Validate input
+        if id_machine is None:
+            raise HTTPException(status_code=400, detail="Missing required parameter: id_machine")
+
+        # Ensure repository instance
+        global repo
+        if repo is None:
+            repo = MachineRepository()
+
+        machine: Optional[Machine] = repo.get_machine_by_id(id_machine)
+        if machine is None:
+            raise HTTPException(status_code=404, detail="Machine not found")
+
+        # Use Machine.wake_on_lan() helper (returns bool)
+        try:
+            ok = machine.wake_on_lan()
+            if ok:
+                return {"ok": True, "id": machine.id, "address": machine.address}
+            else:
+                raise HTTPException(status_code=500, detail="Failed to send Wake-on-LAN packet")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"[ERROR] wake_on_lan failed for id {id_machine}: {e}")
+            raise HTTPException(status_code=500, detail=str(e))

@@ -122,3 +122,5 @@ class MachineRepository:
         except Exception as e:
             logger.error(f"[ERROR] Erro ao criar máquina: {e}")
             return False
+        
+    

@@ -1,5 +1,12 @@
-// Padrão similar a files.js: usa API_BASE relativo e checa sessão
-const API_BASE = window.location.origin;
+// Determine API base (use window.API_BASE from page or fallback)
+const API_BASE = (function(){
+    const fromWindow = (typeof window !== 'undefined' && window.API_BASE) ? window.API_BASE : null;
+    const origin = window.location.origin;
+    const fallback = origin.includes('3333') ? origin : `${window.location.protocol}//${window.location.hostname}:3333`;
+    const base = fromWindow || fallback;
+    console.log('[DEBUG] API_BASE =', base);
+    return base;
+})();
 
 async function fetchMachines() {
     try {
@@ -71,15 +78,40 @@ async function fetchMachines() {
 document.addEventListener('DOMContentLoaded', () => {
     const wolBtn = document.getElementById('wol-button');
     if (wolBtn) {
-        wolBtn.addEventListener('click', () => {
+        wolBtn.addEventListener('click', async () => {
             const wolSelect = document.getElementById('wol-machine');
             const selected = wolSelect ? wolSelect.value : '';
             if (!selected) {
                 alert('Por favor, selecione uma máquina.');
                 return;
             }
-            // placeholder: enviar WOL via API no futuro
-            alert(`Wake-on-LAN enviado para ID: ${selected}`);
+
+            wolBtn.disabled = true;
+            try {
+                console.log('WOL click, sending to:', `${API_BASE}/machine/wake_on_lan?id_machine=${selected}`);
+                // FastAPI handler expects id_machine as a query param for this endpoint
+                const res = await fetch(`${API_BASE}/machine/wake_on_lan?id_machine=${encodeURIComponent(selected)}`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+
+                if (!res.ok) {
+                    const text = await res.text().catch(() => '');
+                    throw new Error(`Server returned ${res.status}: ${text}`);
+                }
+
+                const data = await res.json().catch(() => ({}));
+                if (data && data.ok) {
+                    alert(`Wake-on-LAN sent to ${data.address || selected}`);
+                } else {
+                    alert(`Wake-on-LAN request completed: ${JSON.stringify(data)}`);
+                }
+            } catch (err) {
+                console.error('WOL error', err);
+                alert('Error sending Wake-on-LAN: ' + (err.message || err));
+            } finally {
+                wolBtn.disabled = false;
+            }
         });
     }
 

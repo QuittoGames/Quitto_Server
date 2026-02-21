@@ -10,11 +10,17 @@
 </head>
 <body>
     <script>
+    // expose API_BASE for frontend scripts; prefer the same :3333 fallback used elsewhere
+    (function(){
+        // For local testing the API runs on 127.0.0.1:3333 (uvicorn).
+        // This forces frontend requests to the local API instead of the page origin.
+        // Change if you deploy the API elsewhere.
+        window.API_BASE = 'http://127.0.0.1:3333';
+    })();
+
     async function quickAuthCheck(){
         try{
-            const origin = window.location.origin;
-            const apiBase = origin.includes('3333') ? origin : `${window.location.protocol}//${window.location.hostname}:3333`;
-            const res = await fetch(`${apiBase}/api/auth/check`, { credentials: 'include' });
+            const res = await fetch(`${window.API_BASE}/api/auth/check`, { credentials: 'include' });
             if(!res.ok) {
                 window.location.href = '/pages/login.html';
                 return;
