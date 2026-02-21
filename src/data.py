@@ -16,29 +16,32 @@ class data:
     # Resolved view of BASES where machine IDs are replaced by Machine objects
     RESOLVED_BASES: ClassVar[Dict[str, List[Union[Path, Machine, None]]]] = {}
 
-    # BASES may contain Path entries and/or machine references by DB id (int)
-    # Example: "ai": [ Path(...), 1 ]  -> where 1 is machines.id in DB
-    BASES = {
-        "ai": [
-            Path("/home/quitto/.ai"),
-            # legacy inline Machine kept for backward compatibility; prefer using DB id ints
-        ],
-        "projects": [Path("/run/media/quitto/DATA/Projects")],
-        "obsidian": [Path("/run/media/quitto/DATA/Obisidian_DB/Obisidian")],
-    }
+    # BASES is delegated to Services/MachineService.MACHINE_BASES when present.
+    # Keep an empty placeholder for compatibility; `resolve_bases` will prefer
+    # the MACHINE_BASES defined in the MachineService module if available.
+    BASES: ClassVar[Dict[str, Any]] = {}
 
     @classmethod
     def load_machines(cls) -> None:
-        """Load machines from repository into the in-memory list."""
-        if not cls.MACHINES:
-            repo = MachineRepository()
-            # repo.get_all_machines() should return a list of Machine instances
-            cls.MACHINES = repo.get_all_machines() or []
-            # After loading machines, refresh resolved BASES
+        """Load machines into memory.
+
+        This method delegates the actual load/resolution to
+        `Services.MachineService.MachineService.load_machines` when available.
+        Keeping this wrapper preserves the previous `data.load_machines()` API.
+        """
+        try:
+            # Import inside function to avoid circular imports at module load time
+            from Services.MachineService.MachineService import load_machines as ms_load
+            ms_load()
+            return
+        except Exception:
+            # Fallback to local loading if MachineService not present or import fails
+            if not cls.MACHINES:
+                repo = MachineRepository()
+                cls.MACHINES = repo.get_all_machines() or []
             try:
                 cls.resolve_bases()
             except Exception:
-                # Non-fatal: keep RESOLVED_BASES empty if resolution fails
                 cls.RESOLVED_BASES = {}
 
     @classmethod
@@ -59,13 +62,19 @@ class data:
         - If an entry is a `Path`, keep it.
         - Any other types are coerced to `str` in the resolved view.
         """
-        # Ensure machines are loaded
+        # Ensure machines are loaded (delegates to MachineService.load_machines)
         cls.load_machines()
+
+        # Prefer MACHINE_BASES defined in MachineService if available
+        try:
+            from Services.MachineService.MachineService import MACHINE_BASES as SOURCE_BASES
+        except Exception:
+            SOURCE_BASES = cls.BASES or {}
 
         id_map: Dict[int, Machine] = {m.id: m for m in cls.MACHINES if getattr(m, 'id', None) is not None}
         resolved: Dict[str, List[Union[Path, Machine, None]]] = {}
 
-        for base_name, entries in cls.BASES.items():
+        for base_name, entries in SOURCE_BASES.items():
             resolved[base_name] = []
             for entry in entries:
                 if isinstance(entry, int):

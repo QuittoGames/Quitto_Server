@@ -3,7 +3,6 @@ from data import data
 import os
 import logging
 import subprocess
-
 # Logger specific to this service: server.services.dockerservice
 logger = logging.getLogger("server.services.dockerservice")
 

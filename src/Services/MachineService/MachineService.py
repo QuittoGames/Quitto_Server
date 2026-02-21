@@ -9,6 +9,8 @@ from Repository.Machines.MachineRepository import MachineRepository
 from typing import Optional
 import logging
 
+
+
 # Logger specific to this service: server.services.machineservice
 logger = logging.getLogger("server.services.machineservice")
 
@@ -20,6 +22,52 @@ routerMachine = APIRouter(prefix="/machine", tags=["Machine"])
 repo: Optional[MachineRepository] = None
 
 class MachineService:
+    # MACHINE_BASES and loader moved here from `data.py` to centralize machine configuration
+    # Example entry format: PATHs, Machine instances or integer DB ids
+    MACHINE_BASES = {
+        "ai": [
+            Path("/home/quitto/.ai"),
+        ],
+        "projects": [Path("/run/media/quitto/DATA/Projects")],
+        "obsidian": [Path("/run/media/quitto/DATA/Obisidian_DB/Obisidian")],
+    }
+
+    def load_machines(self):
+        """Load machines from repository into the shared `data` container and
+        resolve BASES entries. This mirrors previous behavior in `data.load_machines()`.
+        """
+        try:
+            from data import data as data_cls
+        except Exception:
+            return
+
+        if not data_cls.MACHINES:
+            repo = MachineRepository()
+            data_cls.MACHINES = repo.get_all_machines() or []
+
+        # build id map
+        id_map = {m.id: m for m in data_cls.MACHINES if getattr(m, 'id', None) is not None}
+        resolved = {}
+        for base_name, entries in self.MACHINE_BASES.items():
+            resolved[base_name] = []
+            for entry in entries:
+                if isinstance(entry, int):
+                    resolved[base_name].append(id_map.get(entry))
+                elif isinstance(entry, Path):
+                    resolved[base_name].append(entry)
+                elif isinstance(entry, Machine):
+                    resolved[base_name].append(entry)
+                else:
+                    resolved[base_name].append(entry)
+
+        data_cls.RESOLVED_BASES = resolved
+        # Also keep a copy on data.BASES for compatibility
+        try:
+            data_cls.BASES = self.MACHINE_BASES
+        except Exception:
+            pass
+        return resolved
+    
     @routerMachine.post("/create")
     def create(self,machine:Machine,request:Request) -> dict:
         if not request.session.get("authenticated"):

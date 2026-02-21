@@ -16,6 +16,12 @@ async function checkAuthOrRedirect() {
 const API_BASE = window.location.origin;
 const logContainer = document.getElementById('log-container');
 
+// Utility: convert a name to Title Case
+function toTitleCase(s){
+    if(!s) return s;
+    return s.split(/\s+/).map(w => w ? (w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()) : '').join(' ');
+}
+
 /* ── Helpers ── */
 
 function log(msg, type = 'info') {
@@ -393,5 +399,70 @@ document.addEventListener('DOMContentLoaded', () => {
         log('MCP Dashboard iniciado', 'info');
         fetchAllData();
         renderEndpoints();
+        initMiniPanel();
     });
 });
+
+/* ── Mini panel init ── */
+function initMiniPanel(){
+    const panel = document.getElementById('mini-panel');
+    const toggle = document.getElementById('mini-toggle');
+    const autohide = document.getElementById('mini-autohide');
+    const nameEl = document.getElementById('mini-name');
+    const avatar = document.getElementById('mini-avatar');
+
+    // Load saved autohide preference
+    const saved = localStorage.getItem('miniPanelAutoHide');
+    if(saved === 'false'){
+        panel.classList.remove('auto-hide');
+        autohide.checked = false;
+    } else {
+        panel.classList.add('auto-hide');
+        autohide.checked = true;
+    }
+
+    if(toggle){
+        toggle.addEventListener('click', ()=>{
+            panel.classList.toggle('open');
+        });
+    }
+
+    autohide.addEventListener('change', (e)=>{
+        const want = e.target.checked;
+        if(want){ panel.classList.add('auto-hide'); localStorage.setItem('miniPanelAutoHide','true'); }
+        else { panel.classList.remove('auto-hide'); localStorage.setItem('miniPanelAutoHide','false'); }
+    });
+
+    // populate account name if available (reuse auth check)
+    // Prefer the lightweight username endpoint; fallback to /api/auth/check
+    fetch(`${API_BASE}/api/auth/user/name`, { credentials: 'include' })
+        .then(r => {
+            if (!r.ok) throw r;
+            return r.json();
+        })
+        .then(d => {
+            const name = d.name || 'Usuário';
+            const displayName = toTitleCase(name);
+            nameEl.textContent = displayName;
+            avatar.textContent = (displayName[0]||'U').toUpperCase();
+            const header = document.getElementById('header-username'); if(header) header.textContent = displayName;
+        })
+        .catch(() => {
+            // fallback to the heavier check endpoint
+            fetch(`${API_BASE}/api/auth/check`, { credentials: 'include' })
+                .then(r => r.json().catch(()=>({})))
+                .then(d => {
+                    if(d && d.authenticated){
+                        const name = d.name || 'Usuário';
+                        const displayName = toTitleCase(name);
+                        nameEl.textContent = displayName;
+                        avatar.textContent = (displayName[0]||'U').toUpperCase();
+                        const header = document.getElementById('header-username'); if(header) header.textContent = displayName;
+                    } else {
+                        nameEl.textContent = 'Convidado';
+                        avatar.textContent = 'G';
+                        const header = document.getElementById('header-username'); if(header) header.textContent = 'Convidado';
+                    }
+                }).catch(()=>{ nameEl.textContent='Convidado'; avatar.textContent='G'; });
+        });
+}

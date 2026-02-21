@@ -26,8 +26,7 @@ class MainService:
                 return f.read()
         except FileNotFoundError:
             return "<h1>MCP Server Online</h1><p>Dashboard não encontrado</p>"
-            
-    
+        
     @routerMain.get("/files-manager", response_class=HTMLResponse)
     def files_manager():
         """Serve a página de gerenciamento de arquivos"""
@@ -99,8 +98,14 @@ class MainService:
         """Informações detalhadas do servidor"""
         return {
             "server": {
-                "name": "Quitto MCP Server",
+                "name": "Quitto Server",
                 "version": "1.0.0",
+                "protocol": "server"
+            },
+            "server": {
+                "name": "Quitto MCP Server",
+                "version": "0.2",
+                "tool_registry_version": "1.0",
                 "protocol": "mcp"
             },
             "bases": {k: str(v) for k, v in data.BASES.items()},

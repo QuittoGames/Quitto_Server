@@ -7,7 +7,6 @@ import subprocess
 from platform import platform
 
 logger = logging.getLogger("server.services.setupprojectservice")
-
 routerProject = APIRouter(tags=["Project Setup"])
 
 class SetupProjectService:

@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Simple launcher for the MCP project:
-# - detects apt/dnf
-# - installs python/pip/docker (requires sudo)
-# - creates a virtualenv `.venv` and installs `requirements.txt`
+# Cleaner launcher for Quitto MCP
+# - detects apt/dnf (optional)
+# - creates virtualenv `.venv` and installs `requirements.txt`
 # - starts uvicorn (index:app) on 127.0.0.1:3333
-# - optionally starts ngrok in Docker if NGROK_AUTHTOKEN is provided
+# - optionally starts ngrok (Docker)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -15,19 +14,30 @@ REQ_FILE="requirements.txt"
 VENV_DIR=".venv"
 ENV_FILE=".env"
 
-# If a .env file exists, export its variables into the environment for the script
+# Load .env into environment if present
 if [ -f "$ENV_FILE" ]; then
 	echo "Loading environment variables from $ENV_FILE"
-	# set -a exports all sourced variables into the environment
 	set -o allexport
 	# shellcheck disable=SC1090
 	source "$ENV_FILE"
 	set +o allexport
 fi
 
-# Hard-code host and port (ignore HOST/PORT in environment)
+# Default host/port
 UVICORN_HOST="127.0.0.1"
 UVICORN_PORT="3333"
+
+# Default number of uvicorn workers (use all CPUs). Cap to a sane default to avoid fork storms.
+DETECTED_CPUS=$(nproc 2>/dev/null || echo 1)
+WORKERS="$DETECTED_CPUS"
+# Cap workers to at most 4 unless user overrides via UVICORN_WORKERS env var
+if [ -n "${UVICORN_WORKERS:-}" ]; then
+	WORKERS="$UVICORN_WORKERS"
+else
+	if [ "$DETECTED_CPUS" -gt 4 ] 2>/dev/null; then
+		WORKERS=4
+	fi
+fi
 
 # Read ngrok vars from environment (may come from .env)
 NGROK_TOKEN="${NGROK_AUTHTOKEN:-}"
@@ -38,6 +48,88 @@ detect_pkg_mgr(){
 	elif command -v dnf >/dev/null 2>&1; then echo dnf;
 	else echo none; fi
 }
+
+# ---------- Helper functions (moved up so they are defined before use) ----------
+
+# Stop and remove existing ngrok container if present (force restart behavior)
+stop_ngrok_container(){
+	EXISTING_CID=$(docker ps -a -q -f name=mcp_ngrok 2>/dev/null || true)
+	if [ -n "$EXISTING_CID" ]; then
+		echo "Stopping and removing existing ngrok container(s): $EXISTING_CID"
+		docker stop mcp_ngrok >/dev/null 2>&1 || true
+		docker rm -f mcp_ngrok >/dev/null 2>&1 || true
+		rm -f ngrok.cid || true
+	fi
+}
+
+# Stop any running uvicorn process (by pidfile or by searching process list)
+stop_uvicorn_if_running(){
+	if [ -f uvicorn.pid ]; then
+		PID=$(cat uvicorn.pid 2>/dev/null || true)
+		if [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>&1; then
+			echo "Stopping existing uvicorn (pid=$PID)"
+			kill "$PID" >/dev/null 2>&1 || true
+			sleep 1
+			if kill -0 "$PID" >/dev/null 2>&1; then
+				echo "uvicorn did not exit, killing forcefully"
+				kill -9 "$PID" >/dev/null 2>&1 || true
+			fi
+		fi
+		rm -f uvicorn.pid || true
+	fi
+
+	# Also try to find any uvicorn processes matching index:app and kill them
+	PIDS=$(pgrep -f "uvicorn.*index:app" || true)
+	for P in $PIDS; do
+		if [ -n "$P" ] && kill -0 "$P" >/dev/null 2>&1; then
+			echo "Killing stray uvicorn process $P"
+			kill "$P" >/dev/null 2>&1 || true
+			sleep 1
+			if kill -0 "$P" >/dev/null 2>&1; then
+				kill -9 "$P" >/dev/null 2>&1 || true
+			fi
+		fi
+	done
+}
+
+# Kill any process listening on a TCP port (used to ensure port is free)
+kill_process_on_port(){
+	PORT="$1"
+	if [ -z "$PORT" ]; then
+		return 0
+	fi
+	echo "Checking for processes listening on port $PORT..."
+	PIDS=""
+	if command -v lsof >/dev/null 2>&1; then
+		PIDS=$(lsof -ti ":${PORT}" 2>/dev/null || true)
+	else
+		# fallback to ss+awk to extract pids
+		PIDS=$(ss -ltnp 2>/dev/null | awk -v port=":${PORT}" '$4 ~ port { split($7,a,","); for(i in a) if(a[i] ~ /pid=/) { sub(/pid=/,"",a[i]); split(a[i],b,";"); print b[1]} }' || true)
+	fi
+	for P in $PIDS; do
+		if [ -n "$P" ] && kill -0 "$P" >/dev/null 2>&1; then
+			echo "Killing process $P listening on port $PORT"
+			kill "$P" >/dev/null 2>&1 || true
+			sleep 1
+			if kill -0 "$P" >/dev/null 2>&1; then
+				echo "Process $P did not exit, killing -9"
+				kill -9 "$P" >/dev/null 2>&1 || true
+			fi
+		fi
+	done
+}
+
+# Truncate uvicorn log file to start fresh
+clear_uvicorn_log(){
+	if [ -f uvicorn.log ]; then
+		: > uvicorn.log
+		echo "Cleared uvicorn.log"
+	else
+		touch uvicorn.log
+	fi
+}
+
+# ---------- end moved helpers ----------
 
 PKG_MGR=$(detect_pkg_mgr)
 
@@ -73,32 +165,111 @@ create_venv_and_install(){
 	fi
 }
 
+# Start uvicorn. If FOREGROUND mode is requested, run in foreground so logs appear live.
 start_uvicorn(){
-	# start in background and write pid
-	echo "Starting uvicorn on ${UVICORN_HOST}:${UVICORN_PORT}..."
-	nohup python -m uvicorn index:app --host "$UVICORN_HOST" --port "$UVICORN_PORT" > uvicorn.log 2>&1 &
+	echo "Starting uvicorn on ${UVICORN_HOST}:${UVICORN_PORT} (foreground=${FOREGROUND}, workers=${WORKERS})..."
+	# ensure venv is active
+	# shellcheck disable=SC1090
+	source "$VENV_DIR/bin/activate" || true
+
+	if [ "$FOREGROUND" = true ]; then
+		# Clear logs before starting so the TUI shows fresh output
+		clear_uvicorn_log || true
+		# run single-process in foreground so user sees logs directly and can Ctrl-C to stop
+		python -m uvicorn index:app --host "$UVICORN_HOST" --port "$UVICORN_PORT" --proxy-headers --log-level info
+	else
+		# background (production-style): run with multiple workers, write logs to uvicorn.log
+		nohup stdbuf -oL python -m uvicorn index:app --host "$UVICORN_HOST" --port "$UVICORN_PORT" --workers "$WORKERS" --proxy-headers --log-level info > uvicorn.log 2>&1 &
+		echo $! > uvicorn.pid
+		echo "Uvicorn started (pid=$(cat uvicorn.pid)), logs -> uvicorn.log"
+	fi
+}
+
+# Start uvicorn in the background as a single-process (used by the TUI)
+start_uvicorn_background_single(){
+	echo "Starting uvicorn (single-process background) on ${UVICORN_HOST}:${UVICORN_PORT}..."
+	# ensure venv is active
+	# shellcheck disable=SC1090
+	source "$VENV_DIR/bin/activate" || true
+	clear_uvicorn_log || true
+	nohup stdbuf -oL python -m uvicorn index:app --host "$UVICORN_HOST" --port "$UVICORN_PORT" --proxy-headers --log-level info > uvicorn.log 2>&1 &
 	echo $! > uvicorn.pid
 	echo "Uvicorn started (pid=$(cat uvicorn.pid)), logs -> uvicorn.log"
 }
 
+# Minimal TUI: show concise status and a short tail of logs. Keys: q=quit, v=view full logs
+tui_loop(){
+	# ensure terminal is sane
+	trap 'stty sane; echo; cleanup; exit' INT TERM
+	while true; do
+		clear
+		echo "================== Quitto MCP — Status =================="
+		# uvicorn status
+		if [ -f uvicorn.pid ]; then
+			PID=$(cat uvicorn.pid 2>/dev/null || true)
+			if [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>&1; then
+				echo "Uvicorn: running (pid=$PID)"
+			else
+				echo "Uvicorn: not running (stale pid)"
+			fi
+		else
+			echo "Uvicorn: not running"
+		fi
+
+		# ngrok status
+		NG_CID=""
+		if [ -f ngrok.cid ]; then
+			NG_CID=$(cat ngrok.cid 2>/dev/null || true)
+		fi
+		if [ -n "$NG_CID" ] && docker ps -q -f id="$NG_CID" >/dev/null 2>&1; then
+			echo "ngrok: running (container id=${NG_CID})"
+		elif docker ps -q -f name=mcp_ngrok >/dev/null 2>&1 && [ -n "$(docker ps -q -f name=mcp_ngrok)" ]; then
+			echo "ngrok: running (container name=mcp_ngrok)"
+		else
+			echo "ngrok: not running"
+		fi
+
+		echo
+		echo "Last uvicorn log lines ( concise ):"
+		if [ -f uvicorn.log ]; then
+			tail -n 12 uvicorn.log | sed -n '1,200p'
+		else
+			echo "(no uvicorn.log yet)"
+		fi
+
+		echo
+		echo "Controls: q=quit (stop services), v=view full uvicorn log (press Ctrl-C to return)"
+		# read a single character with timeout to refresh the display
+		read -r -t 2 -n 1 KEY || true
+		if [ "${KEY:-}" = "q" ] || [ "${KEY:-}" = "Q" ]; then
+			echo "Quitting..."
+			cleanup
+			exit 0
+		elif [ "${KEY:-}" = "v" ] || [ "${KEY:-}" = "V" ]; then
+			if [ -f uvicorn.log ]; then
+				stty sane
+				less +F uvicorn.log || true
+				# re-enable raw mode behavior after pager exits
+			else
+				echo "No uvicorn.log to view. Press Enter to continue."
+				read -r
+			fi
+		fi
+	done
+}
+
 # Wait for the server to accept HTTP connections before proceeding.
-# Tries /health then /; returns 0 on success, 1 on failure after timeout.
 wait_for_server(){
 	local retries=30
 	local i=0
 	echo "Waiting for server to become available at http://${UVICORN_HOST}:${UVICORN_PORT}..."
 	while [ $i -lt $retries ]; do
 		if command -v curl >/dev/null 2>&1; then
-			if curl -sSf "http://${UVICORN_HOST}:${UVICORN_PORT}/health" >/dev/null 2>&1; then
-				echo "Server responded on /health"
-				return 0
-			fi
-			if curl -sSf "http://${UVICORN_HOST}:${UVICORN_PORT}/" >/dev/null 2>&1; then
-				echo "Server responded on /"
+			if curl -sSf "http://${UVICORN_HOST}:${UVICORN_PORT}/health" >/dev/null 2>&1 || curl -sSf "http://${UVICORN_HOST}:${UVICORN_PORT}/" >/dev/null 2>&1; then
+				echo "Server responded"
 				return 0
 			fi
 		else
-			# fallback to python check
 			python3 - <<PY >/dev/null 2>&1 || true
 import sys, urllib.request
 try:
@@ -124,108 +295,74 @@ PY
 }
 
 start_ngrok_docker(){
-	# Prefer using an env file if present so docker picks up all variables
-	# Prefer using an env file if present so docker picks up all variables
-	if [ -f "$ENV_FILE" ]; then
-		echo "Using env file $ENV_FILE for Docker (NGROK_AUTHTOKEN will be passed there)."
-		echo "Pulling ngrok Docker image..."
-		docker pull ngrok/ngrok:latest
-		echo "Starting ngrok (Docker) using --env-file $ENV_FILE (detached)..."
-		# If a container with the name exists, start/reuse it to avoid name conflicts
-		EXISTING_CID=$(docker ps -a -q -f name=mcp_ngrok 2>/dev/null || true)
-		if [ -n "$EXISTING_CID" ]; then
-			# check container status
-			STATUS=$(docker inspect --format '{{.State.Status}}' mcp_ngrok 2>/dev/null || true)
-			if [ "$STATUS" = "running" ]; then
-				RUNNING_CID=$(docker ps -q -f name=mcp_ngrok 2>/dev/null || true)
-				echo "ngrok container 'mcp_ngrok' is already running. Skipping start."
-				echo "$RUNNING_CID" > ngrok.cid
-				return
-			else
-				if [ "$DO_KEEP_NGROK" = true ]; then
-					echo "Found existing stopped container 'mcp_ngrok', starting it due to --keep-ngrok..."
-					docker start mcp_ngrok >/dev/null 2>&1 || true
-					docker ps -q -f name=mcp_ngrok >/dev/null 2>&1 && docker ps -q -f name=mcp_ngrok > ngrok.cid || true
-					echo "ngrok started (existing container). Use 'docker logs -f mcp_ngrok' to follow logs." 
-					return
-				else
-					echo "Found existing stopped container 'mcp_ngrok' (id=$EXISTING_CID). Removing it to avoid conflicts..."
-					docker rm -f mcp_ngrok >/dev/null 2>&1 || true
-					# continue to start a fresh container
-				fi
-			fi
-		fi
-		if [ -n "$NGROK_URL" ]; then
-			CID=$(docker run --net=host --env-file "$ENV_FILE" -d --name mcp_ngrok ngrok/ngrok:latest http --url="$NGROK_URL" "$UVICORN_PORT")
-		else
-			CID=$(docker run --net=host --env-file "$ENV_FILE" -d --name mcp_ngrok ngrok/ngrok:latest http "$UVICORN_PORT")
-		fi
-		echo "$CID" > ngrok.cid
-		echo "ngrok started detached (container id=$CID), use 'docker logs -f mcp_ngrok' to follow logs or 'docker stop mcp_ngrok' to stop."
-		return
-	fi
-
-	if [ -z "$NGROK_TOKEN" ]; then
-		echo "NGROK_AUTHTOKEN not set; skipping ngrok start.";
-		return
-	fi
-
-	echo "Pulling ngrok Docker image..."
-	docker pull ngrok/ngrok:latest
-	echo "Starting ngrok (Docker) (detached)..."
-	# If a container with the name exists, start/reuse it to avoid name conflicts
+	# Start ngrok detached and write container id to ngrok.cid. Always prefer detached run so it won't block the terminal.
+	echo "Starting ngrok (detached)..."
+	docker pull ngrok/ngrok:latest || true
 	EXISTING_CID=$(docker ps -a -q -f name=mcp_ngrok 2>/dev/null || true)
 	if [ -n "$EXISTING_CID" ]; then
 		STATUS=$(docker inspect --format '{{.State.Status}}' mcp_ngrok 2>/dev/null || true)
 		if [ "$STATUS" = "running" ]; then
 			RUNNING_CID=$(docker ps -q -f name=mcp_ngrok 2>/dev/null || true)
-			echo "ngrok container 'mcp_ngrok' is already running. Skipping start."
+			echo "ngrok container 'mcp_ngrok' is already running."
 			echo "$RUNNING_CID" > ngrok.cid
 			return
 		else
 			if [ "$DO_KEEP_NGROK" = true ]; then
-				echo "Found existing stopped container 'mcp_ngrok', starting it due to --keep-ngrok..."
 				docker start mcp_ngrok >/dev/null 2>&1 || true
 				docker ps -q -f name=mcp_ngrok >/dev/null 2>&1 && docker ps -q -f name=mcp_ngrok > ngrok.cid || true
-				echo "ngrok started (existing container). Use 'docker logs -f mcp_ngrok' to follow logs." 
+				echo "ngrok started (existing container)."
 				return
 			else
-				echo "Found existing stopped container 'mcp_ngrok' (id=$EXISTING_CID). Removing it to avoid conflicts..."
 				docker rm -f mcp_ngrok >/dev/null 2>&1 || true
-				# continue to start a fresh container
 			fi
 		fi
 	fi
-	# Use provided NGROK_URL if set (note: custom subdomains may require paid plan)
-	if [ -n "$NGROK_URL" ]; then
-		CID=$(docker run --net=host -d --name mcp_ngrok -e NGROK_AUTHTOKEN="$NGROK_TOKEN" ngrok/ngrok:latest http --url="$NGROK_URL" "$UVICORN_PORT")
-	else
-		CID=$(docker run --net=host -d --name mcp_ngrok -e NGROK_AUTHTOKEN="$NGROK_TOKEN" ngrok/ngrok:latest http "$UVICORN_PORT")
+	# Build docker run arguments
+	RUN_ARGS=( -d --name mcp_ngrok )
+	# expose host networking only when explicitly desired; prefer default bridge unless NGROK_NEEDS_HOST_NET is true
+	if [ "${NGROK_NEEDS_HOST_NET:-false}" = "true" ]; then
+		RUN_ARGS+=( --net=host )
 	fi
-	echo "$CID" > ngrok.cid
-	echo "ngrok started detached (container id=$CID), use 'docker logs -f mcp_ngrok' to follow logs or 'docker stop mcp_ngrok' to stop."
+	if [ -f "$ENV_FILE" ]; then
+		RUN_ARGS+=( --env-file "$ENV_FILE" )
+	fi
+	if [ -n "$NGROK_TOKEN" ]; then
+		RUN_ARGS+=( -e NGROK_AUTHTOKEN="$NGROK_TOKEN" )
+	fi
+	if [ -n "$NGROK_URL" ]; then
+		CID=$(docker run "${RUN_ARGS[@]}" ngrok/ngrok:latest http --url="$NGROK_URL" "$UVICORN_PORT")
+	else
+		CID=$(docker run "${RUN_ARGS[@]}" ngrok/ngrok:latest http "$UVICORN_PORT")
+	fi
+	if [ -n "$CID" ]; then
+		echo "$CID" > ngrok.cid
+		echo "ngrok started detached (container id=$CID)"
+	else
+		echo "Failed to start ngrok container"
+	fi
 }
 
 show_help(){
 	cat <<EOF
-Usage: ./run.sh [--install-system] [--ngrok]
+Usage: ./run.sh [--install-system] [--ngrok] [--foreground]
 
 Options:
 	--install-system   Attempt to install system packages via apt or dnf (requires sudo)
 	--ngrok            Start ngrok (Docker) after launching uvicorn. Requires NGROK_AUTHTOKEN env var.
 	--no-ui            Do not start the interactive TUI; print status and return to shell
 	--keep-ngrok       Do not stop ngrok container on Ctrl-C (leave running)
+	--foreground       Run uvicorn in foreground (see logs live in terminal)
 	--help             Show this help
 
 Environment:
 	NGROK_AUTHTOKEN    ngrok authtoken (or pass to script env)
-	NGROK_URL          Optional ngrok URL/subdomain (may require paid plan)
+	NGROK_URL          Optional ngrok URL/subdomain
 	HOST               Host to bind (default 127.0.0.1)
 	PORT               Port to bind (default 3333)
 
 Examples:
 	NGROK_AUTHTOKEN=TOKEN ./run.sh --install-system --ngrok
-	./run.sh
+	./run.sh --foreground
 EOF
 }
 
@@ -233,20 +370,18 @@ if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
 	show_help; exit 0
 fi
 
-# Behavior:
-# - no flags: start both server and ngrok
-# - --server: start only the server
-# - --ngrok: start only ngrok
-# - both flags: start both
-
+# Defaults and flags
 DO_NGROK=false
 DO_SERVER=false
 DO_INSTALL=false
 DO_KEEP_NGROK=false
 DO_NO_UI=false
+# Run uvicorn in foreground by default so logs are visible and the terminal is occupied
+FOREGROUND=true
+CLEAN_PID=false
+NGROK_STARTED=false
 
 if [ "$#" -eq 0 ]; then
-	# no args -> default: run both
 	DO_SERVER=true
 	DO_NGROK=true
 else
@@ -257,9 +392,10 @@ else
 			--no-ui) DO_NO_UI=true ;;
 			--install-system) DO_INSTALL=true ;;
 			--keep-ngrok) DO_KEEP_NGROK=true ;;
+			--foreground) FOREGROUND=true ;;
+			--clean-pid) CLEAN_PID=true ;;
 		esac
 	done
-	# if user passed flags but none were server/ngrok, default to both
 	if [ "$DO_SERVER" = false ] && [ "$DO_NGROK" = false ]; then
 		DO_SERVER=true
 		DO_NGROK=true
@@ -270,23 +406,64 @@ if $DO_INSTALL; then
 	install_system_pkgs
 fi
 
-if $DO_SERVER; then
+if [ "${DO_SERVER}" = true ]; then
 	create_venv_and_install
-	start_uvicorn
+
+	# helper: remove stale pid file if it points to a non-running process
+	remove_stale_pid(){
+		if [ -f uvicorn.pid ]; then
+			PID=$(cat uvicorn.pid 2>/dev/null || true)
+			if [ -n "$PID" ] && ! kill -0 "$PID" >/dev/null 2>&1; then
+				echo "Removing stale uvicorn.pid (pid=$PID not running)"
+				rm -f uvicorn.pid
+			fi
+		fi
+	}
+
+	# If user requested clean or to avoid stale pid blocking start, remove it now
+	if [ "$CLEAN_PID" = true ]; then
+		remove_stale_pid
+	fi
+	# if starting in foreground, run uvicorn directly (this process will not return)
+	if [ "$FOREGROUND" = true ]; then
+		# if ngrok requested, stop existing and start it first (detached)
+		if [ "${DO_NGROK}" = true ]; then
+			stop_ngrok_container
+			start_ngrok_docker
+			NGROK_STARTED=true
+		fi
+		# stop any running uvicorn and ensure no stale pid prevents foreground start
+		stop_uvicorn_if_running || true
+		remove_stale_pid || true
+		start_uvicorn
+		# start_uvicorn in foreground will block here
+	else
+		# background path: ensure existing services are stopped and start fresh
+		if [ "${DO_NGROK}" = true ]; then
+			stop_ngrok_container
+		fi
+		stop_uvicorn_if_running || true
+		remove_stale_pid || true
+		start_uvicorn
+	fi
 else
 	echo "Server start skipped (--server not set)."
 fi
 
 # If requested to start ngrok, wait until server is up (if server was started here)
-if $DO_NGROK; then
-	if $DO_SERVER; then
+if [ "${DO_NGROK}" = true ]; then
+	if $DO_SERVER && [ "$FOREGROUND" = false ]; then
 		if wait_for_server; then
 			echo "Server is up — starting ngrok..."
 		else
 			echo "Warning: server did not become ready in time. Proceeding to start ngrok anyway."
 		fi
 	fi
-	start_ngrok_docker
+	if [ "$NGROK_STARTED" = true ]; then
+		echo "ngrok already started earlier; skipping duplicate start"
+	else
+		start_ngrok_docker
+	fi
 else
 	echo "ngrok start skipped (--ngrok not set)."
 	echo "To start ngrok only: ./run.sh --ngrok"
@@ -295,7 +472,7 @@ fi
 # Cleanup function to stop uvicorn and ngrok container on SIGINT/SIGTERM
 cleanup(){
 	echo "\nShutting down..."
-	# stop uvicorn if started
+	# stop uvicorn if started in background
 	if [ -f uvicorn.pid ]; then
 		PID=$(cat uvicorn.pid 2>/dev/null || true)
 		if [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>&1; then
@@ -319,22 +496,85 @@ cleanup(){
 	exit 0
 }
 
+# Stop and remove existing ngrok container if present (force restart behavior)
+stop_ngrok_container(){
+	EXISTING_CID=$(docker ps -a -q -f name=mcp_ngrok 2>/dev/null || true)
+	if [ -n "$EXISTING_CID" ]; then
+		echo "Stopping and removing existing ngrok container(s): $EXISTING_CID"
+		docker stop mcp_ngrok >/dev/null 2>&1 || true
+		docker rm -f mcp_ngrok >/dev/null 2>&1 || true
+		rm -f ngrok.cid || true
+	fi
+}
+
+# Stop any running uvicorn process (by pidfile or by searching process list)
+stop_uvicorn_if_running(){
+	if [ -f uvicorn.pid ]; then
+		PID=$(cat uvicorn.pid 2>/dev/null || true)
+		if [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>&1; then
+			echo "Stopping existing uvicorn (pid=$PID)"
+			kill "$PID" >/dev/null 2>&1 || true
+			sleep 1
+			if kill -0 "$PID" >/dev/null 2>&1; then
+				echo "uvicorn did not exit, killing forcefully"
+				kill -9 "$PID" >/dev/null 2>&1 || true
+			fi
+		fi
+		rm -f uvicorn.pid || true
+	fi
+
+	# Also try to find any uvicorn processes matching index:app and kill them
+	PIDS=$(pgrep -f "uvicorn.*index:app" || true)
+	for P in $PIDS; do
+		if [ -n "$P" ] && kill -0 "$P" >/dev/null 2>&1; then
+			echo "Killing stray uvicorn process $P"
+			kill "$P" >/dev/null 2>&1 || true
+			sleep 1
+			if kill -0 "$P" >/dev/null 2>&1; then
+				kill -9 "$P" >/dev/null 2>&1 || true
+			fi
+		fi
+	done
+}
+
+# Kill any process listening on a TCP port (used to ensure port is free)
+kill_process_on_port(){
+	PORT="$1"
+	if [ -z "$PORT" ]; then
+		return 0
+	fi
+	echo "Checking for processes listening on port $PORT..."
+	PIDS=""
+	if command -v lsof >/dev/null 2>&1; then
+		PIDS=$(lsof -ti ":${PORT}" 2>/dev/null || true)
+	else
+		# fallback to ss+awk to extract pids
+		PIDS=$(ss -ltnp 2>/dev/null | awk -v port=":${PORT}" '$4 ~ port { split($7,a,","); for(i in a) if(a[i] ~ /pid=/) { sub(/pid=/,"",a[i]); split(a[i],b,";"); print b[1]} }' || true)
+	fi
+	for P in $PIDS; do
+		if [ -n "$P" ] && kill -0 "$P" >/dev/null 2>&1; then
+			echo "Killing process $P listening on port $PORT"
+			kill "$P" >/dev/null 2>&1 || true
+			sleep 1
+			if kill -0 "$P" >/dev/null 2>&1; then
+				echo "Process $P did not exit, killing -9"
+				kill -9 "$P" >/dev/null 2>&1 || true
+			fi
+		fi
+	done
+}
+
 trap cleanup INT TERM
 
 # Small TUI: banner, status and recent logs. Refreshes until interrupted.
 render_ui(){
-	# smaller interval for smoother updates
 	local sleep_sec="0.5"
 	while true; do
-		# clear screen for clearer layout
 		printf '\033[2J\033[H'
-
-		# Banner (bright cyan)
 		printf '%b\n' '\033[1;36m============================================================='
 		printf '%b\n' '                       QUITTO MCP SERVER                       '
 		printf '%b\n' '=============================================================\033[0m'
 
-		# Server status (green/yellow/red)
 		if [ -f uvicorn.pid ]; then
 			PID=$(cat uvicorn.pid 2>/dev/null || true)
 			if [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>&1; then
@@ -346,10 +586,8 @@ render_ui(){
 			printf '%b\n' "\033[1;31mServer:\033[0m    DOWN   (not running)"
 		fi
 
-		# ngrok status and public URL
 		NGROK_CID=$(docker ps -q -f name=mcp_ngrok 2>/dev/null || true)
 		if [ -n "$NGROK_CID" ]; then
-			# attempt to fetch public url from local ngrok API (available when using --net=host)
 			NGROK_PUBLIC=""
 			if command -v curl >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
 				NGROK_PUBLIC=$(curl -s http://127.0.0.1:4040/api/tunnels 2>/dev/null | python3 -c 'import sys,json; s=sys.stdin.read(); print("" if not s.strip() else (lambda d: (d.get("tunnels",[])[0].get("public_url","") if d.get("tunnels") else ""))(json.loads(s)))')
@@ -360,7 +598,6 @@ render_ui(){
 				printf '%b\n' "\033[1;32mngrok:\033[0m    OK     (container=${NGROK_CID})"
 			fi
 		else
-			# check if stopped container exists
 			EXIST_CID=$(docker ps -a -q -f name=mcp_ngrok 2>/dev/null || true)
 			if [ -n "$EXIST_CID" ]; then
 				printf '%b\n' "\033[1;33mngrok:\033[0m    STOPPED (container=${EXIST_CID})"
@@ -378,7 +615,6 @@ render_ui(){
 			echo "  (no uvicorn.log yet)"
 		fi
 
-		# small ngrok log excerpt for quick visibility
 		echo
 		printf '%b\n' 'ngrok recent logs (last 6 lines):'
 		if [ -n "$NGROK_CID" ]; then
@@ -387,10 +623,8 @@ render_ui(){
 			echo "  (ngrok not running)"
 		fi
 
-		# Combined recent logs (uvicorn + ngrok) for quick debugging
 		printf '%b\n' '-------------------------------------------------------------'
 		printf '%b\n' 'Combined recent logs (uvicorn + ngrok):'
-		# collect uvicorn log (if exists) and a short ngrok tail, then show last 30 lines
 		(
 			if [ -f uvicorn.log ]; then
 				tail -n 20 uvicorn.log
@@ -401,14 +635,17 @@ render_ui(){
 		) | sed -e 's/^/  /' | tail -n 30 || true
 
 		printf "\n(Press Ctrl-C to stop server + ngrok)\n"
-		# flush output then sleep
 		sleep "$sleep_sec"
 	done
 }
 
-if $DO_SERVER; then
-	# Ensure log file exists
-	touch uvicorn.log
+if [ "${DO_SERVER}" = true ]; then
+	# Ensure log file exists for background mode
+	touch uvicorn.log || true
+	if [ -f uvicorn.pid ]; then
+		# keep previous PID if present
+		true
+	fi
 	if [ "$DO_NO_UI" = true ]; then
 		echo "Services started in background (no-ui mode)."
 		if [ -f uvicorn.pid ]; then
@@ -426,11 +663,12 @@ if $DO_SERVER; then
 		echo "Follow ngrok logs: docker logs -f mcp_ngrok"
 		exit 0
 	fi
-	render_ui
-	# when render_ui exits, run cleanup
-	cleanup
+	# If running in background mode, show the TUI. If foreground, start_uvicorn already blocked.
+	if [ "$FOREGROUND" = false ]; then
+		render_ui
+		cleanup
+	fi
 else
-	# no server to render; if only ngrok started, just print info and exit
 	if [ "$DO_NO_UI" = true ]; then
 		echo "No server process to show. ngrok started (if requested)."
 		if [ -f ngrok.cid ]; then
@@ -440,5 +678,3 @@ else
 	fi
 	echo "No server process to show. ngrok started (if requested)."
 fi
-
-wwdswddswds

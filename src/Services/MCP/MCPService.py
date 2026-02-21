@@ -7,13 +7,13 @@ from Services.MCP.MemoryService import MemoryService
 from Services.Files.FilesTools import FilesTools 
 import logging
 
-# Logger specific to this service: server.services.mcp.mcpservice
-logger = logging.getLogger("server.services.mcp.mcpservice")
 
 # ═══════════════════════════════════════════════════════════════
 # MCPService - Rotas de Info do Sistema e Dashboard
 # ═══════════════════════════════════════════════════════════════
 
+# Logger specific to this service: server.services.mcp.mcpservice
+logger = logging.getLogger("server.services.mcp.mcpservice")
 
 routerMCP = APIRouter(prefix="/mcp", tags=["MCP"])
 
@@ -147,7 +147,7 @@ class MCPService:
 
         return {
             "tool_registry_version": "1.0",
-            "mcp_version": "0.1",
+            "mcp_version": "0.2",
             "resources": resources,
             "agent": {
                 "id": agent.id,

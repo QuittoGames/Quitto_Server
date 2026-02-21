@@ -5,17 +5,37 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MCP Server Dashboard</title>
-    <link rel="stylesheet" href="css/style.css">
+        <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="shortcut icon" href="/static/img/Logo.png" type="image/x-icon">
 </head>
 <body>
 
     <header>
-        <h1>Quitto MCP SERVER</h1>
+        <h1>Quitto Server</h1>
         <div class="subtitle">
             <span class="status-indicator" id="status-dot"></span>
             <span id="status-text">Conectando...</span>
+            <span id="header-username" class="header-username"></span>
         </div>
     </header>
+
+    <!-- Mini auto-hide panel (account + quick links) -->
+    <div id="mini-panel" class="mini-panel auto-hide">
+        <div class="mini-content">
+            <div class="mini-account">
+                <div id="mini-avatar" class="mini-avatar">U</div>
+                <div class="mini-name" id="mini-name">Conta</div>
+            </div>
+            <nav class="mini-links">
+                <a href="/machines" class="mini-link">🖥️ Machines</a>
+                <a href="/files-manager" class="mini-link">📂 Explorer</a>
+                <a href="/server" class="mini-link">⚙️ Server</a>
+            </nav>
+            <div class="mini-actions">
+                <label><input type="checkbox" id="mini-autohide" checked> Auto-hide</label>
+            </div>
+        </div>
+    </div>
 
     <div class="container">
         

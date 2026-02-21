@@ -1,12 +1,10 @@
 from fastapi import APIRouter,HTTPException
-from data import data
 import os
 import datetime
 import json
 from pathlib import Path
 import subprocess
 import logging
-
 # Logger specific to this service: server.services.calenderservice
 logger = logging.getLogger("server.services.calenderservice")
 

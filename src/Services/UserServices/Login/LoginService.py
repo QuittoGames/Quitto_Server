@@ -14,7 +14,6 @@ logger = logging.getLogger("server.services.user.login.loginservice")
 # LoginService - Rotas de Info do Sistema e Dashboard
 # ═══════════════════════════════════════════════════════════════
 
-
 routerLogin = APIRouter(prefix="/api/auth", tags=["Login"])
 
 class LoginService:

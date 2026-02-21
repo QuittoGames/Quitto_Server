@@ -1,14 +1,17 @@
 from data import data
 from tool import tool
-from fastapi import FastAPI
+from fastapi import FastAPI,Request
+from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 import asyncio
 import logging
 import os
 from starlette.middleware.sessions import SessionMiddleware
+# Rate limiter integration removed; no LimitService dependency
+
 data_local = data()
 
-
+#Sete Configs In app 
 def configure_logging():
     """Configure console logging with a compact, readable format."""
     root = logging.getLogger()
@@ -32,6 +35,10 @@ app.add_middleware(
     secret_key=os.getenv("SECRET_KEY")
 )
 
+@app.middleware("http")
+async def pass_through_middleware(request: Request, call_next):
+    # Rate limiter removed — pass requests through directly
+    return await call_next(request)
 
 @app.on_event("startup")
 async def startup():

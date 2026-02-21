@@ -137,6 +137,15 @@ h1 {
     box-shadow: 0 0 8px var(--accent-red);
 }
 
+/* Header username */
+.header-username {
+    margin-left: 0.6rem;
+    color: var(--accent-blue);
+    font-weight: 700;
+    font-size: 0.95rem;
+    vertical-align: middle;
+}
+
 /* ── Animations ── */
 @keyframes pulse {
     0%, 100% { opacity: 1; }
@@ -397,6 +406,100 @@ h1 {
 .project-result.loading {
     border-left: 3px solid var(--accent-blue);
     color: var(--accent-blue);
+}
+
+/* ── Mini auto-hide panel ── */
+.mini-panel {
+    position: fixed;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    transition: transform 0.22s ease, opacity 0.22s ease;
+    font-family: inherit;
+}
+
+/* auto-hide moves the panel upward while preserving horizontal centering */
+.mini-panel.auto-hide { transform: translate(-50%, -75%); opacity: 0.85; }
+.mini-panel:hover, .mini-panel.open { transform: translate(-50%, 0); opacity: 1; }
+
+.mini-toggle {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 0.4rem 0.55rem;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-right: 0.5rem;
+    font-size: 1rem;
+}
+
+.mini-content {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    background: rgba(10,10,15,0.95);
+    border: 1px solid var(--border-color);
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(2,6,23,0.6), 0 0 16px var(--accent-glow);
+}
+
+.mini-account { display:flex; gap:0.5rem; align-items:center; }
+.mini-avatar {
+    width: 36px; height:36px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center;
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-green)); color:#fff; font-weight:700;
+}
+.mini-name { font-size:0.85rem; color:var(--text-primary); font-weight:600; }
+
+.mini-links { display:flex; gap:0.5rem; align-items:center; }
+.mini-link { color:var(--text-secondary); text-decoration:none; font-size:0.85rem; padding:0.25rem 0.45rem; border-radius:4px; }
+.mini-link:hover { color:var(--text-primary); background:rgba(59,130,246,0.06); }
+
+.mini-actions { margin-left: 0.5rem; font-size:0.78rem; color:var(--text-secondary); }
+
+@media (max-width:720px){
+    .mini-content { display:none; }
+    .mini-panel { left: auto; right: 8px; transform: none; }
+}
+
+/* Invisible dashboard behavior: fully hidden until hovering the top hotspot */
+/* Dashboard hidden by default; revealed by explicit toggle button */
+#dashboard-main{
+    transition: opacity 260ms cubic-bezier(.2,.9,.2,1), transform 260ms cubic-bezier(.2,.9,.2,1);
+    opacity: 0;
+    transform: translateY(-10px) scale(0.995);
+    pointer-events: none;
+    will-change: opacity, transform;
+}
+
+/* Visible state applied by JS */
+.dashboard-visible {
+    opacity: 1 !important;
+    transform: translateY(0) scale(1) !important;
+    pointer-events: auto !important;
+}
+
+/* Toggle button (top-left) */
+.dashboard-toggle{
+    position: fixed;
+    top: 8px;
+    left: 8px;
+    z-index: 1600;
+    background: rgba(10,10,15,0.9);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    padding: 0.35rem 0.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1.05rem;
+    box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+}
+
+@media (max-width:720px){
+    .dashboard-toggle{ left: 6px; top:6px; }
 }
 
 /* ── Scrollbar ── */
