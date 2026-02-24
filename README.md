@@ -35,9 +35,6 @@ O projeto oferece serviços, repositórios e utilitários para criar, testar e o
   - [Resolução de problemas](#resolução-de-problemas)
   - [Links úteis](#links-úteis)
   - [Licença](#licença)
-- [Indique a opção ou solicite outro ajuste.](#indique-a-opção-ou-solicite-outro-ajuste)
-- [Quitto\_Server](#quitto_server)
-- [Quitto\_Server](#quitto_server-1)
 
 ## Funcionalidades
 
@@ -225,10 +222,3 @@ Este `README` foi consolidado para remover conteúdo duplicado e marcações de 
 3. Escrever quickstart específico para `MCPService`, `WebService` ou `MachineService`.
 
 Indique a opção ou solicite outro ajuste.
-=======
-# Quitto_Server
-Home Lab and MCP Server
->>>>>>> c52c977 (Initial commit)
-=======
-# Quitto_Server
-Home Lab and MCP Server
