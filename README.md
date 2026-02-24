@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
 <div align="center">
 
 # MCP — Quitto Server
@@ -37,6 +35,9 @@ O projeto oferece serviços, repositórios e utilitários para criar, testar e o
   - [Resolução de problemas](#resolução-de-problemas)
   - [Links úteis](#links-úteis)
   - [Licença](#licença)
+- [Indique a opção ou solicite outro ajuste.](#indique-a-opção-ou-solicite-outro-ajuste)
+- [Quitto\_Server](#quitto_server)
+- [Quitto\_Server](#quitto_server-1)
 
 ## Funcionalidades
 
@@ -231,4 +232,3 @@ Home Lab and MCP Server
 =======
 # Quitto_Server
 Home Lab and MCP Server
->>>>>>> a9f956a7d1c187fa970b0bf4a93f25cf8324dc97
