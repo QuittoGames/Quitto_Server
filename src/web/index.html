@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<!-- MCP Dashboard - Dados reais do servidor -->
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Dashboard</title>
+        <link rel="stylesheet" href="/css/style.css">
+    <link rel="shortcut icon" href="/img/Logo.png" type="image/x-icon">
+</head>
+<body>
+
+    <header>
+        <h1>Quitto Server</h1>
+        <div class="subtitle">
+            <span class="status-indicator" id="status-dot"></span>
+            <span id="status-text">Conectando...</span>
+            <span id="header-username" class="header-username"></span>
+        </div>
+    </header>
+
+    <!-- Mini auto-hide panel (account + quick links) -->
+    <div id="mini-panel" class="mini-panel auto-hide">
+        <div class="mini-content">
+            <div class="mini-account">
+                <div id="mini-avatar" class="mini-avatar">U</div>
+                <div class="mini-name" id="mini-name">Conta</div>
+            </div>
+            <nav class="mini-links">
+                <a href="/machines" class="mini-link">🖥️ Machines</a>
+                <a href="/files-manager" class="mini-link">📂 Explorer</a>
+                <a href="/server" class="mini-link">⚙️ Server</a>
+            </nav>
+            <div class="mini-actions">
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        
+        <!-- Sistema -->
+        <div class="card">
+            <h2>// sistema</h2>
+            <div id="system-info">
+                <div class="info-row"><span class="label">Carregando...</span></div>
+            </div>
+        </div>
+
+        <!-- Python -->
+        <div class="card">
+            <h2>// python</h2>
+            <div id="python-info">
+                <div class="info-row"><span class="label">Carregando...</span></div>
+            </div>
+        </div>
+
+        <!-- Rede -->
+        <div class="card">
+            <h2>// rede</h2>
+            <div id="network-info">
+                <div class="info-row"><span class="label">Carregando...</span></div>
+            </div>
+        </div>
+
+        <!-- Data/Hora -->
+        <div class="card">
+            <h2>// datetime</h2>
+            <div id="datetime-info">
+                <div class="info-row"><span class="label">Carregando...</span></div>
+            </div>
+        </div>
+
+        <!-- Discos -->
+        <div class="card">
+            <h2>// discos</h2>
+            <div id="disk-info">
+                <div class="info-row"><span class="label">Carregando...</span></div>
+            </div>
+        </div>
+
+        <!-- Processo -->
+        <div class="card">
+            <h2>// processo</h2>
+            <div id="process-info">
+                <div class="info-row"><span class="label">Carregando...</span></div>
+            </div>
+        </div>
+
+        <!-- Bases Disponíveis -->
+        <div class="card">
+            <h2>// bases</h2>
+            <div class="bases-list" id="bases-list">
+                <div class="info-row"><span class="label">Carregando...</span></div>
+            </div>
+        </div>
+
+        <!-- Endpoints -->
+        <div class="card">
+            <h2>// endpoints</h2>
+            <div class="endpoints-list" id="endpoints-list">
+                <span>Carregando endpoints...</span>
+            </div>
+        </div>
+        <div class="utils">
+            <!-- File Manager Link -->
+            <div class="card">
+                <h2>// gerenciador de arquivos</h2>
+                <div style="text-align: center; padding: 1.5rem 0;">
+                    <a href="/files-manager" class="fm-dashboard-link">
+                        <span style="font-size: 2rem; display: block; margin-bottom: 0.5rem;">📂</span>
+                        Abrir File Manager
+                    </a>
+                    <p style="margin-top: 0.75rem; font-size: 0.75rem; color: var(--text-secondary);">
+                        Navegação, upload, busca avançada e info do filesystem
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Gerenciamento de Máquinas -->
+            <div class="card">
+                <h2>// máquinas</h2>
+                <div style="text-align: center; padding: 1.5rem 0;">
+                    <a href="/machines" class="fm-dashboard-link">
+                        <span style="font-size: 2rem; display: block; margin-bottom: 0.5rem;">🖥️</span>
+                        Gerenciar Máquinas
+                    </a>
+                    <p style="margin-top: 0.75rem; font-size: 0.75rem; color: var(--text-secondary);">
+                        Visualize, gerencie e envie Wake-on-LAN para máquinas
+                    </p>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Calendário - Eventos da Semana -->
+        <div class="card" style="grid-column: 1 / -1;">
+            <h2>// calendário <button class="refresh-btn" onclick="fetchCalender()">Refresh</button></h2>
+            <div class="calender-week" id="calender-week">
+                <div class="calender-loading">Carregando eventos...</div>
+            </div>
+            <div class="calender-events" id="calender-events">
+            </div>
+        </div>
+        
+        
+        <!-- Criar Projeto -->
+        <div class="card" style="grid-column: 1 / -1;">
+            <h2>// criar projeto</h2>
+            <form id="create-project-form" class="project-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="proj-name">Nome</label>
+                        <input type="text" id="proj-name" placeholder="MeuProjeto" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="proj-lang">Linguagem</label>
+                        <select id="proj-lang">
+                            <optgroup label="Principais">
+                                <option value="py">Python</option>
+                                <option value="java">Java</option>
+                                <option value="js">JavaScript</option>
+                                <option value="ts">TypeScript</option>
+                                <option value="rs">Rust</option>
+                                <option value="cs">C#</option>
+                                <option value="go">Go</option>
+                                <option value="cpp">C++</option>
+                                <option value="c">C</option>
+                            </optgroup>
+                            <optgroup label="Web / Mobile / Game">
+                                <option value="web">Web</option>
+                                <option value="mobile">Mobile</option>
+                                <option value="game_dev">Game Dev</option>
+                                <option value="spring">Spring</option>
+                            </optgroup>
+                            <optgroup label="Outras Linguagens">
+                                <option value="swift">Swift</option>
+                                <option value="kt">Kotlin</option>
+                                <option value="rb">Ruby</option>
+                                <option value="php">PHP</option>
+                                <option value="dart">Dart</option>
+                                <option value="lua">Lua</option>
+                                <option value="luau">Roblox Lua</option>
+                                <option value="r">R</option>
+                                <option value="hs">Haskell</option>
+                                <option value="ex">Elixir</option>
+                                <option value="scala">Scala</option>
+                                <option value="pl">Perl</option>
+                                <option value="fs">F#</option>
+                                <option value="ml">OCaml</option>
+                                <option value="clj">Clojure</option>
+                                <option value="elm">Elm</option>
+                                <option value="hx">Haxe</option>
+                                <option value="rkt">Racket</option>
+                                <option value="groovy">Groovy</option>
+                                <option value="coffee">CoffeeScript</option>
+                                <option value="cr">Crystal</option>
+                                <option value="v">V</option>
+                                <option value="zig">Zig</option>
+                            </optgroup>
+                            <optgroup label="Scripts / Config">
+                                <option value="sh">Shell</option>
+                                <option value="ps1">PowerShell</option>
+                                <option value="sql">SQL</option>
+                                <option value="json">JSON</option>
+                                <option value="yaml">YAML</option>
+                                <option value="toml">TOML</option>
+                                <option value="ini">INI</option>
+                                <option value="md">Markdown</option>
+                                <option value="tex">TeX</option>
+                                <option value="asm">Assembly</option>
+                                <option value="Dockerfile">Dockerfile</option>
+                                <option value="Makefile">Makefile</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <div class="form-group form-group-path">
+                        <label for="proj-path">Caminho</label>
+                        <input type="text" id="proj-path" placeholder="/run/media/quitto/DATA/Projects" value="/run/media/quitto/DATA/Projects">
+                    </div>
+                    <div class="form-group form-group-btn">
+                        <label>&nbsp;</label>
+                        <button type="submit" class="refresh-btn" id="create-btn">Criar</button>
+                    </div>
+                </div>
+            </form>
+            <div id="project-result" class="project-result" style="display:none;"></div>
+        </div>
+
+
+       
+        <!-- Logs -->
+        <div class="card" style="grid-column: 1 / -1;">
+            <h2>// logs <button class="refresh-btn" onclick="fetchAllData()">Refresh</button></h2>
+            <div class="logs" id="log-container"></div>
+        </div>
+
+
+    
+    <script src="/js/js.js"></script>
+</body>
+</html>

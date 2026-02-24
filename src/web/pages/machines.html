@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciamento de Máquinas</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/files.css">
+    <link rel="stylesheet" href="/css/machines.css">
+    <link rel="shortcut icon" href="/img/Logo.png" type="image/x-icon">
+</head>
+<body>
+    <script>
+    // expose API_BASE for frontend scripts; prefer the same :3333 fallback used elsewhere
+    (function(){
+        // For local testing the API runs on 127.0.0.1:3333 (uvicorn).
+        // This forces frontend requests to the local API instead of the page origin.
+        // Change if you deploy the API elsewhere.
+        window.API_BASE = 'http://127.0.0.1:3333/server';
+    })();
+
+    async function quickAuthCheck(){
+        try{
+            const res = await fetch(`${window.API_BASE}/api/auth/check`, { credentials: 'include' });
+            if(!res.ok) {
+                window.location.href = '/pages/login.html';
+                return;
+            }
+            const statusDot = document.getElementById('status-dot');
+            const statusText = document.getElementById('status-text');
+            if(statusDot) statusDot.classList.add('online');
+            if(statusText) statusText.textContent = 'Conectado';
+        }catch(e){
+            const statusText = document.getElementById('status-text');
+            if(statusText) statusText.textContent = 'Offline';
+        }
+    }
+    document.addEventListener('DOMContentLoaded', quickAuthCheck);
+    </script>
+    <header>
+        <h1>Gerenciamento de Máquinas</h1>
+        <div class="subtitle">
+            <a href="/server" class="nav-link">← Dashboard</a>
+            <span class="status-indicator" id="status-dot"></span>
+            <span id="status-text">Conectando...</span>
+        </div>
+    </header>
+
+    <div class="fm-layout">
+        <!-- Sidebar (placeholder for future features) -->
+        <aside class="fm-sidebar">
+            <div class="fm-sidebar-section">
+                <h3>Operações</h3>
+                <div class="fm-base-list">
+                    <div class="fm-base-item disabled">Em breve...</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="fm-main">
+            <div class="fm-toolbar">
+                <span class="fm-path-label">Máquinas cadastradas</span>
+            </div>
+            <div class="fm-info-bar">
+                <span>Total de máquinas: <span id="machine-count">0</span></span>
+            </div>
+            <div class="fm-browser" style="overflow-x:auto;">
+                <table class="fm-table" style="width:100%; min-width:600px;">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Endereço</th>
+                            <th>Nome</th>
+                            <th>Interface</th>
+                            <th>Fabricante</th>
+                            <th>Randomizado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="machine-list">
+                        <!-- Conteúdo será preenchido dinamicamente -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="fm-toolbar" style="margin-top:2rem;">
+                <span class="fm-path-label">Wake-on-LAN</span>
+            </div>
+            <div class="wol-section">
+                <label for="wol-machine">Selecione uma máquina:</label>
+                <select id="wol-machine">
+                    <option value="">-- Selecione --</option>
+                    <!-- Opções serão preenchidas dinamicamente -->
+                </select>
+                <button id="wol-button" class="fm-btn accent">Enviar Wake-on-LAN</button>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/machines.js"></script>
+</body>
+</html>

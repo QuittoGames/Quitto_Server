@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtualenv
+venv/
+.venv/
+env/
+# Environment files (ignore secret env files and variants)
+.env
+.env.*
+.env.local
+
+# Secrets
+.secrets
+secrets.yml
+*.key
+*.pem
+
+# ngrok logs
+ngrok.log
+
+# PyInstaller
+*.spec
+
+# Tests
+.pytest_cache/
+.tox/
+.coverage
+coverage.xml
+
+# Logs
+*.log
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Typing
+.mypy_cache/
+.pytype/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

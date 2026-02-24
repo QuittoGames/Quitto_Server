@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+python-dotenv
+python-multipart
+psycopg2-binary
+psutil
+pydantic
+bcrypt
+aiofiles
+itsdangerous
+slowapi

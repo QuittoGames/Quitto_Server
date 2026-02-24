@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - MCP Server</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/files.css">
+    <link rel="stylesheet" href="/css/login.css">
+    <link rel="shortcut icon" href="/img/Logo.png" type="image/x-icon">
+</head>
+<body>
+    <div class="login-container">
+        <h2>Login MCP Server</h2>
+        <form class="login-form" id="login-form">
+            <div>
+                <label for="username">Usuário</label>
+                <input type="text" id="username" name="username" required autocomplete="username">
+            </div>
+            <div>
+                <label for="password">Senha</label>
+                <input type="password" id="password" name="password" required autocomplete="current-password">
+            </div>
+            <button class="login-btn" type="submit">Entrar</button>
+            <div class="login-error" id="login-error"></div>
+        </form>
+    </div>
+    <script src="/js/login.js"></script>
+</body>
+</html>

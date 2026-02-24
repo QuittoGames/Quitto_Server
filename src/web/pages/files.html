@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script>
+    async function checkAuthOrRedirect() {
+        try {
+            const res = await fetch('/api/auth/check', { credentials: 'include' });
+            const data = await res.json();
+            if (!data.authenticated) {
+                window.location.href = '/pages/login.html';
+            }
+        } catch {
+            window.location.href = '/pages/login.html';
+        }
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+        checkAuthOrRedirect();
+    });
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Manager - Quitto MCP</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/files.css">
+    <link rel="shortcut icon" href="/img/Logo.png" type="image/x-icon">
+</head>
+<body>
+
+    <header>
+        <h1>FILE MANAGER</h1>
+        <div class="subtitle">
+            <a href="/server" class="nav-link">← Dashboard</a>
+            <span class="status-indicator" id="status-dot"></span>
+            <span id="status-text">Conectando...</span>
+        </div>
+    </header>
+
+    <div class="fm-layout">
+
+        <!-- ═══ Sidebar ═══ -->
+        <aside class="fm-sidebar">
+            
+            <!-- Bases -->
+            <div class="fm-sidebar-section">
+                <h3>Bases</h3>
+                <div id="fm-bases" class="fm-base-list"></div>
+            </div>
+
+            <!-- Filesystem -->
+            <div class="fm-sidebar-section">
+                <h3>Filesystem</h3>
+                <div id="fm-filesystem"></div>
+            </div>
+
+            <!-- Memory -->
+            <div class="fm-sidebar-section">
+                <h3>Memória</h3>
+                <div id="fm-memory"></div>
+            </div>
+
+            <!-- Disk I/O -->
+            <div class="fm-sidebar-section">
+                <h3>Disk I/O</h3>
+                <div id="fm-diskio"></div>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="fm-sidebar-section">
+                <h3>Stats da Base</h3>
+                <div id="fm-stats">
+                    <span class="fm-hint">Selecione uma base</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- ═══ Main Content ═══ -->
+        <main class="fm-main">
+
+            <!-- Path Direto -->
+            <div class="fm-path-bar">
+                <label class="fm-path-label">Path:</label>
+                <input type="text" id="fm-path-input" class="fm-path-input" placeholder="/caminho/absoluto/no/sistema" 
+                       onkeydown="if(event.key==='Enter') goToPath()">
+                <button class="fm-btn accent" onclick="goToPath()">Ir</button>
+            </div>
+
+            <!-- Toolbar -->
+            <div class="fm-toolbar">
+                <div class="fm-toolbar-left">
+                    <button class="fm-btn" id="btn-back" onclick="goBack()" title="Voltar" disabled>
+                        ← 
+                    </button>
+                    <button class="fm-btn" id="btn-home" onclick="goHome()" title="Root">
+                        ⌂
+                    </button>
+                    <button class="fm-btn" onclick="refreshCurrent()" title="Atualizar">
+                        ↻
+                    </button>
+                </div>
+
+                <!-- Breadcrumb -->
+                <div class="fm-breadcrumb" id="fm-breadcrumb">
+                    <span class="fm-crumb">Selecione uma base ou digite um path</span>
+                </div>
+
+                <div class="fm-toolbar-right">
+                    <button class="fm-btn accent" onclick="showUploadModal()">
+                        ↑ Upload
+                    </button>
+                    <button class="fm-btn" onclick="showNewFolderModal()">
+                        + Pasta
+                    </button>
+                </div>
+            </div>
+
+            <!-- Search Bar -->
+            <div class="fm-search-bar">
+                <input type="text" id="fm-search-input" placeholder="Buscar arquivos..." 
+                       onkeydown="if(event.key==='Enter') executeSearch()">
+                <select id="fm-search-ext">
+                    <option value="">Extensão</option>
+                    <option value=".py">.py</option>
+                    <option value=".js">.js</option>
+                    <option value=".ts">.ts</option>
+                    <option value=".md">.md</option>
+                    <option value=".json">.json</option>
+                    <option value=".html">.html</option>
+                    <option value=".css">.css</option>
+                    <option value=".java">.java</option>
+                    <option value=".rs">.rs</option>
+                    <option value=".go">.go</option>
+                    <option value=".c">.c</option>
+                    <option value=".cpp">.cpp</option>
+                </select>
+                <select id="fm-search-cat">
+                    <option value="">Categoria</option>
+                    <option value="code">Código</option>
+                    <option value="web">Web</option>
+                    <option value="doc">Documentos</option>
+                    <option value="data">Dados</option>
+                    <option value="img">Imagens</option>
+                    <option value="audio">Áudio</option>
+                    <option value="video">Vídeo</option>
+                    <option value="archive">Arquivos</option>
+                    <option value="config">Config</option>
+                </select>
+                <select id="fm-search-sort">
+                    <option value="name">Nome</option>
+                    <option value="size">Tamanho</option>
+                    <option value="date">Data</option>
+                </select>
+                <label class="fm-search-content" title="Buscar dentro do conteúdo dos arquivos">
+                    <input type="checkbox" id="fm-search-content-check">
+                    Conteúdo
+                </label>
+                <button class="fm-btn accent" onclick="executeSearch()">Buscar</button>
+                <button class="fm-btn" onclick="clearSearch()">Limpar</button>
+            </div>
+
+            <!-- View Toggle / Info bar -->
+            <div class="fm-info-bar">
+                <div class="fm-info-bar-left">
+                    <span id="fm-dir-summary"></span>
+                </div>
+                <div class="fm-info-bar-right">
+                    <button class="fm-view-btn active" id="btn-view-list" onclick="setView('list')" title="Lista">≡</button>
+                    <button class="fm-view-btn" id="btn-view-grid" onclick="setView('grid')" title="Grid">⊞</button>
+                </div>
+            </div>
+
+            <!-- File Browser -->
+            <div class="fm-browser" id="fm-browser">
+                <div class="fm-empty">Selecione uma base para começar</div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- ═══ Modals ═══ -->
+
+    <!-- Upload Modal -->
+    <div class="fm-modal-overlay" id="modal-upload" style="display:none;">
+        <div class="fm-modal">
+            <div class="fm-modal-header">
+                <h3>Upload de Arquivos</h3>
+                <button class="fm-modal-close" onclick="closeModal('modal-upload')">✕</button>
+            </div>
+            <div class="fm-modal-body">
+                <div class="fm-upload-zone" id="upload-zone" 
+                     ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
+                    <div class="fm-upload-icon">↑</div>
+                    <p>Arraste arquivos aqui ou clique para selecionar</p>
+                    <input type="file" id="upload-input" multiple onchange="handleFileSelect(event)" style="display:none;">
+                    <button class="fm-btn accent" onclick="document.getElementById('upload-input').click()">Selecionar Arquivos</button>
+                </div>
+                <div class="fm-upload-list" id="upload-file-list"></div>
+                <div class="fm-upload-progress" id="upload-progress"></div>
+            </div>
+            <div class="fm-modal-footer">
+                <button class="fm-btn" onclick="closeModal('modal-upload')">Cancelar</button>
+                <button class="fm-btn accent" id="btn-upload-confirm" onclick="confirmUpload()" disabled>Enviar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Folder Modal -->
+    <div class="fm-modal-overlay" id="modal-newfolder" style="display:none;">
+        <div class="fm-modal fm-modal-sm">
+            <div class="fm-modal-header">
+                <h3>Nova Pasta</h3>
+                <button class="fm-modal-close" onclick="closeModal('modal-newfolder')">✕</button>
+            </div>
+            <div class="fm-modal-body">
+                <label>Nome da pasta:</label>
+                <input type="text" id="newfolder-name" class="fm-input" placeholder="Nova Pasta" 
+                       onkeydown="if(event.key==='Enter') confirmNewFolder()">
+            </div>
+            <div class="fm-modal-footer">
+                <button class="fm-btn" onclick="closeModal('modal-newfolder')">Cancelar</button>
+                <button class="fm-btn accent" onclick="confirmNewFolder()">Criar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rename Modal -->
+    <div class="fm-modal-overlay" id="modal-rename" style="display:none;">
+        <div class="fm-modal fm-modal-sm">
+            <div class="fm-modal-header">
+                <h3>Renomear</h3>
+                <button class="fm-modal-close" onclick="closeModal('modal-rename')">✕</button>
+            </div>
+            <div class="fm-modal-body">
+                <label>Novo nome:</label>
+                <input type="text" id="rename-input" class="fm-input" 
+                       onkeydown="if(event.key==='Enter') confirmRename()">
+            </div>
+            <div class="fm-modal-footer">
+                <button class="fm-btn" onclick="closeModal('modal-rename')">Cancelar</button>
+                <button class="fm-btn accent" onclick="confirmRename()">Renomear</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirm Modal -->
+    <div class="fm-modal-overlay" id="modal-delete" style="display:none;">
+        <div class="fm-modal fm-modal-sm">
+            <div class="fm-modal-header">
+                <h3>Confirmar Exclusão</h3>
+                <button class="fm-modal-close" onclick="closeModal('modal-delete')">✕</button>
+            </div>
+            <div class="fm-modal-body">
+                <p id="delete-msg"></p>
+                <p class="fm-warning">Esta ação não pode ser desfeita!</p>
+            </div>
+            <div class="fm-modal-footer">
+                <button class="fm-btn" onclick="closeModal('modal-delete')">Cancelar</button>
+                <button class="fm-btn danger" onclick="confirmDelete()">Deletar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Preview Modal -->
+    <div class="fm-modal-overlay" id="modal-preview" style="display:none;">
+        <div class="fm-modal fm-modal-lg">
+            <div class="fm-modal-header">
+                <h3 id="preview-title">Preview</h3>
+                <button class="fm-modal-close" onclick="closeModal('modal-preview')">✕</button>
+            </div>
+            <div class="fm-modal-body">
+                <div class="fm-preview-info" id="preview-info"></div>
+                <pre class="fm-preview-content" id="preview-content"></pre>
+            </div>
+            <div class="fm-modal-footer">
+                <button class="fm-btn" onclick="closeModal('modal-preview')">Fechar</button>
+                <button class="fm-btn accent" id="btn-preview-download" onclick="downloadCurrent()">Download</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast notifications -->
+    <div class="fm-toast-container" id="fm-toasts"></div>
+
+    <script src="/js/files.js"></script>
+</body>
+</html>
