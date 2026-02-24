@@ -147,7 +147,7 @@ async function fetchDiskInfo() {
 
 async function fetchBases() {
     try {
-        const res  = await fetch(`${API_BASE}/api/bases`, { credentials: 'include' });
+        const res  = await fetch(`${API_BASE}/api/global_paths`, { credentials: 'include' });
         if (!res.ok) {
             const text = await res.text().catch(() => '');
             log(`Erro ao buscar bases: HTTP ${res.status} - ${text.split('\n')[0]}`, 'error');

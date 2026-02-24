@@ -249,7 +249,7 @@ class MCPService:
 
     @routerMCP.post("/save_file")
     async def save_file(name_path: str, file: UploadFile = File(...)):
-        base_list = data.BASES.get(name_path)
+        base_list = data.GLOBAL_PATHS.get(name_path)
         if not base_list:
             raise HTTPException(status_code=404, detail=f"base path not found for: {name_path}")
 
@@ -284,7 +284,7 @@ class MCPService:
         """Search for `file_name` across registered bases or inside a specific base.
 
         - If `base_path_code` is provided, search only that base and return the first match (no guessing).
-        - If `base_path_code` is omitted, search all keys in `data.BASES` and return all matches.
+        - If `base_path_code` is omitted, search all keys in `data.GLOBAL_PATHS` and return all matches.
         """
         results = []
 
@@ -292,11 +292,11 @@ class MCPService:
         if base_path_code:
             keys = [base_path_code]
         else:
-            keys = list(data.BASES.keys())
+            keys = list(data.GLOBAL_PATHS.keys())
 
         for key in keys:
             # skip unknown base keys
-            if key not in data.BASES:
+            if key not in data.GLOBAL_PATHS:
                 continue
             try:
                 found = FilesTools.search_file_in_base(key, file_name)

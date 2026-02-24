@@ -121,5 +121,5 @@ class SystemInfo:
             "datetime": SystemInfo.datetime_info(),
             "env": SystemInfo.env(),
             "process": SystemInfo.process(),
-            "bases": {k: str(v) for k, v in data.BASES.items()}
+            "bases": {k: str(v) for k, v in data.GLOBAL_PATHS.items()}
         }

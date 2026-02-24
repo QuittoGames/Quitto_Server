@@ -125,10 +125,10 @@ class Agent:
         "example": "POST /mcp/save_file (multipart form)"
     },
     {
-        "name": "list_bases",
-        "description_en": "List configured base roots (paths) available to the MCP and their status.",
+        "name": "list_global_paths",
+        "description_en": "List configured global paths available to the MCP and their status.",
         "access": {"endpoint": "/mcp/info", "method": "GET", "content_type": "application/json", "auth": "session"},
-        "run_instructions_en": "GET /mcp/info to retrieve resolved bases and their types. Alternatively call GET /mcp for registry + bases.",
+        "run_instructions_en": "GET /mcp/info to retrieve resolved global paths and their types. Alternatively call GET /mcp for registry + bases.",
         "parameters": [],
         "returns": {"type": "object", "schema": {"bases": "object"}},
         "required_roles": ["planner", "executor", "memory"],

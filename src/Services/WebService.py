@@ -100,9 +100,9 @@ class WebService:
     
     # ─── Utilitários ────────────────────────────────────────────
     
-    @routerWeb.get("/bases")
-    def list_bases():
-        """Lista as bases disponíveis"""
+    @routerWeb.get("/global_paths")
+    def list_global_paths():
+        """Lista as global_paths (registered global paths) disponíveis"""
         try:
             # Ensure MACHINE_BASES / BASES are loaded and resolved
             try:
@@ -127,7 +127,7 @@ class WebService:
             return result
         except Exception as e:
             # Retorna JSON com erro para evitar resposta HTML que quebra o parse no frontend
-            return {"error": f"failed to list bases: {str(e)}"}
+            return {"error": f"failed to list global_paths: {str(e)}"}
 
     @routerWeb.get("/machines")
     def list_machines():

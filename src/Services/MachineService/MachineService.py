@@ -61,9 +61,9 @@ class MachineService:
                     resolved[base_name].append(entry)
 
         data_cls.RESOLVED_BASES = resolved
-        # Also keep a copy on data.BASES for compatibility
+        # Also keep a copy on data.GLOBAL_PATHS for compatibility
         try:
-            data_cls.BASES = self.MACHINE_BASES
+            data_cls.GLOBAL_PATHS = self.MACHINE_BASES
         except Exception:
             pass
         return resolved

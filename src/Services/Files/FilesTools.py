@@ -4,6 +4,8 @@ from data import data
 from datetime import datetime
 import logging
 from dataclasses import dataclass
+import json
+from Repository.User.UserRepository import UserRepository
 
 logger = logging.getLogger("server.services.files.filestools")
 
@@ -98,8 +100,8 @@ class FilesTools:
 	@staticmethod
 	def _get_file_path_for(base: str, rel_path: str):
 		# base is a registered key
-		if base in data.BASES:
-			entries = data.BASES.get(base) or []
+		if base in data.GLOBAL_PATHS:
+			entries = data.GLOBAL_PATHS.get(base) or []
 			if not isinstance(entries, list):
 				entries = [entries]
 
@@ -118,7 +120,7 @@ class FilesTools:
 				return None, "file not found"
 			return candidate, None
 
-		# base looks like a path - validate it's registered in data.BASES
+		# base looks like a path - validate it's registered in data.GLOBAL_PATHS
 		try:
 			candidate_root = Path(base)
 		except Exception:
@@ -126,7 +128,7 @@ class FilesTools:
 
 		found = False
 		resolved_base_key = None
-		for k, entries in data.BASES.items():
+		for k, entries in data.GLOBAL_PATHS.items():
 			if not isinstance(entries, list):
 				entries = [entries]
 			for e in entries:
@@ -145,7 +147,7 @@ class FilesTools:
 				break
 
 		if not found:
-			return None, "path not registered in data.BASES"
+			return None, "path not registered in data.GLOBAL_PATHS"
 
 		if not candidate_root.exists() or not candidate_root.is_dir():
 			return None, "path not found or not a directory"
@@ -167,10 +169,10 @@ class FilesTools:
 
 	@staticmethod
 	def search_file_in_base(base: str, filename: str, limit: int = 1):
-		if base not in data.BASES:
+		if base not in data.GLOBAL_PATHS:
 			return None
 
-		entries = data.BASES.get(base) or []
+		entries = data.GLOBAL_PATHS.get(base) or []
 		if not isinstance(entries, list):
 			entries = [entries]
 
@@ -227,4 +229,22 @@ class FilesTools:
 
 		return FilesTools._read_file_path(candidate)
 
-    
+	@staticmethod
+	def get_home_path(id:int) -> Path:
+		path_config_json = Path("/home/quitto/.config/quitto_server/homes.json")
+		try:
+			if not path_config_json.exists():
+				return None
+			
+			content_data:dict = {}
+
+			with open(path_config_json, "r", encoding="utf-8") as f:
+				content_data = json.load(f)
+
+			for i in content_data:
+				if i["id_owner"] == id:
+					return Path(i["path"])
+
+			return None	
+		except Exception as E:
+			logger.error(f"[ERROR] Erro in get your path, Erro: {E}")

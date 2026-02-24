@@ -58,10 +58,10 @@ class FileService:
     @routerFile.get("/list/{base}")
     def list_files(base: str):
         """Lista arquivos .md de uma base"""
-        entry = data.BASES.get(base)
+        entry = data.GLOBAL_PATHS.get(base)
         root = resolve_base_root(entry)
         if not root:
-            return {"error": "base not found", "available": list(data.BASES.keys())}
+            return {"error": "base not found", "available": list(data.GLOBAL_PATHS.keys())}
 
         files = [str(p.relative_to(root)) for p in root.rglob("*.md")]
         return {"base": base, "count": len(files), "files": files}
@@ -76,11 +76,11 @@ class FileService:
         return _read_file_path(candidate)
 
     @routerFile.get("/find")
-    def find_in_base(base: str = Query(..., description="Base name from data.BASES or an absolute path"), filename: str = Query(..., description="Filename or relative path to find"), limit: int = Query(50, description="Max matches to return")):
-        """Busca um arquivo dentro de uma base (chave em data.BASES) ou em um caminho absoluto.
+    def find_in_base(base: str = Query(..., description="Base name from data.GLOBAL_PATHS or an absolute path"), filename: str = Query(..., description="Filename or relative path to find"), limit: int = Query(50, description="Max matches to return")):
+        """Busca um arquivo dentro de uma base (chave em data.GLOBAL_PATHS) ou em um caminho absoluto.
 
-        - Se `base` for uma chave existente em `data.BASES`, procura em todas as entradas resolvidas dessa base.
-        - Se `base` for um caminho, valida que ele esteja presente em `data.BASES` (mesma entrada) antes de pesquisar.
+        - Se `base` for uma chave existente em `data.GLOBAL_PATHS`, procura em todas as entradas resolvidas dessa base.
+        - Se `base` for um caminho, valida que ele esteja presente em `data.GLOBAL_PATHS` (mesma entrada) antes de pesquisar.
         """
         matches = []
 
@@ -97,9 +97,9 @@ class FileService:
             except Exception:
                 return
 
-        # Case 1: base is a registered key in data.BASES
-        if base in data.BASES:
-            entries = data.BASES.get(base) or []
+        # Case 1: base is a registered key in data.GLOBAL_PATHS
+        if base in data.GLOBAL_PATHS:
+            entries = data.GLOBAL_PATHS.get(base) or []
             # normalize to list
             if not isinstance(entries, list):
                 entries = [entries]
@@ -126,15 +126,15 @@ class FileService:
 
             return {"query": {"base": base, "filename": filename}, "count": len(matches), "matches": matches}
 
-        # Case 2: base looks like a path — validate it's listed in data.BASES
+        # Case 2: base looks like a path — validate it's listed in data.GLOBAL_PATHS
         try:
             candidate_path = Path(base)
         except Exception:
             return {"error": "invalid base/path"}
 
-        # Verify candidate_path is present in any data.BASES entry (exact match)
+        # Verify candidate_path is present in any data.GLOBAL_PATHS entry (exact match)
         found_in_bases = False
-        for k, entries in data.BASES.items():
+        for k, entries in data.GLOBAL_PATHS.items():
             if not isinstance(entries, list):
                 entries = [entries]
             for e in entries:
@@ -153,7 +153,7 @@ class FileService:
                 break
 
         if not found_in_bases:
-            return {"error": "path not registered in data.BASES"}
+            return {"error": "path not registered in data.GLOBAL_PATHS"}
 
         # search inside candidate_path
         root = candidate_path
@@ -175,6 +175,30 @@ class FileService:
 
         return {"query": {"base": base, "filename": filename, "resolved_base": resolved_base_key}, "count": len(matches), "matches": matches}
     
+    @routerFile.post("/get_home_user")
+    def get_home_user(request: Request, id: Optional[int] = None):
+        """Retorna o caminho home do usuário.
+
+        - Se `id` for fornecido no corpo/query, usa-o.
+        - Caso contrário, tenta obter `user_id` da sessão (`request.session`).
+        """
+        try:
+            user_id = id or request.session.get("user_id")
+            if not user_id:
+                raise HTTPException(status_code=401, detail="User id not provided or not authenticated")
+
+            path = FilesTools.get_home_path(user_id)
+            if not path:
+                raise HTTPException(status_code=400, detail="Invalid user path")
+
+            return {"path": str(path)}
+        except HTTPException:
+            raise
+        except Exception as E:
+            logger.error(f"[ERROR] Erro in get Path of user, Erro: {E}")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+
     @routerFile.get("/search/{base}")
     def search_files(
         base: str,
@@ -188,7 +212,7 @@ class FileService:
         content: Optional[str] = Query(None, description="Buscar dentro do conteúdo dos arquivos")
     ):
         """Busca avançada de arquivos na base"""
-        entry = data.BASES.get(base)
+        entry = data.GLOBAL_PATHS.get(base)
         root = resolve_base_root(entry)
         if not root or not root.exists():
             return {"error": "base not found"}
@@ -318,7 +342,7 @@ class FileService:
     @routerFile.post("/upload/{base}")
     async def upload_to_base(base: str, file: UploadFile = File(...), path: str = Query("", description="Subpasta destino dentro da base")):
         """Upload de arquivo para uma base específica"""
-        entry = data.BASES.get(base)
+        entry = data.GLOBAL_PATHS.get(base)
         root = resolve_base_root(entry)
         if not root or not root.exists():
             raise HTTPException(status_code=404, detail="base not found")
@@ -397,7 +421,7 @@ class FileService:
     @routerFile.get("/browse/{base}")
     def browse_directory(base: str, path: str = ""):
         """Navega por diretórios de uma base com detalhes completos"""
-        entry = data.BASES.get(base)
+        entry = data.GLOBAL_PATHS.get(base)
         root = resolve_base_root(entry)
         if not root or not root.exists():
             return {"error": "base not found"}
@@ -462,7 +486,7 @@ class FileService:
     @routerFile.get("/download/{base}")
     def download_file(base: str, path: str):
         """Download de arquivo"""
-        entry = data.BASES.get(base)
+        entry = data.GLOBAL_PATHS.get(base)
         root = resolve_base_root(entry)
         if not root:
             raise HTTPException(status_code=404, detail="base not found")
@@ -485,7 +509,7 @@ class FileService:
     @routerFile.delete("/delete/{base}")
     def delete_item(base: str, path: str):
         """Deleta arquivo ou diretório"""
-        entry = data.BASES.get(base)
+        entry = data.GLOBAL_PATHS.get(base)
         root = resolve_base_root(entry)
         if not root:
             raise HTTPException(status_code=404, detail="base not found")
@@ -509,7 +533,7 @@ class FileService:
     @routerFile.post("/create-folder/{base}")
     def create_folder(base: str, path: str = "", name: str = ""):
         """Cria nova pasta"""
-        entry = data.BASES.get(base)
+        entry = data.GLOBAL_PATHS.get(base)
         root = resolve_base_root(entry)
         if not root:
             raise HTTPException(status_code=404, detail="base not found")
@@ -536,7 +560,7 @@ class FileService:
     @routerFile.post("/rename/{base}")
     def rename_item(base: str, path: str, new_name: str):
         """Renomeia arquivo ou pasta"""
-        entry = data.BASES.get(base)
+        entry = data.GLOBAL_PATHS.get(base)
         root = resolve_base_root(entry)
         if not root:
             raise HTTPException(status_code=404, detail="base not found")

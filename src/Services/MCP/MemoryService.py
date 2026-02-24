@@ -103,9 +103,9 @@ class MemoryService:
 
     def get_base_templete(self) -> Path:
         try:
-            templete = data.BASES.get("ai")[0] / "templete.md"
+            templete = data.GLOBAL_PATHS.get("ai")[0] / "templete.md"
             if not templete.exists():
-                templete = data.BASES.get("obsidian")[0] / "IA" / "templete.md"
+                templete = data.GLOBAL_PATHS.get("obsidian")[0] / "IA" / "templete.md"
 
             return templete
         except PermissionError as E:

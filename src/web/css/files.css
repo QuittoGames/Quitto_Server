@@ -125,6 +125,13 @@
     cursor: not-allowed;
 }
 
+/* Button específico para abrir o home do usuário */
+.fm-files-home {
+    width: 100%;
+    text-align: left;
+    padding-left: 0.5rem;
+}
+
 .fm-base-icon { font-size: 1.2rem; }
 
 .fm-base-info {

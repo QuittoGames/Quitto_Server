@@ -5,8 +5,6 @@ import grp
 
 #Server Side
 
-from typing import list
-
 @dataclass
 class UnixUser:
     uid: int
@@ -15,7 +13,8 @@ class UnixUser:
     groups: list[str]
     
 
-    def load_unix_user(uid: int | None = None) -> UnixUser:
+    @staticmethod
+    def load_unix_user(uid: int | None = None) -> 'UnixUser':
         uid = uid or os.getuid()
         user = pwd.getpwuid(uid)
 

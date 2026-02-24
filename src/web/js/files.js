@@ -101,7 +101,7 @@ function setOnline(ok) {
 
 async function loadBases() {
     try {
-        const res = await fetch(`${API}/api/bases`);
+        const res = await fetch(`${API}/api/global_paths`);
         if (!res.ok) {
             const txt = await res.text().catch(() => '');
             toast('Erro ao carregar bases: ' + (txt || `HTTP ${res.status}`), 'error');
@@ -241,6 +241,34 @@ async function loadFilesystem() {
         }
     } catch (e) {
         toast(`Erro filesystem: ${e.message}`, 'error');
+    }
+}
+
+// Obtém o home do usuário autenticado e navega até ele
+async function getMyHome() {
+    try {
+        const res = await fetch(`${API}/api/files/get_home_user`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            toast(err.detail || 'Erro ao obter home do usuário', 'error');
+            return;
+        }
+
+        const data = await res.json();
+        if (data && data.path) {
+            browseDirect(data.path);
+            toast('Abrindo seu diretório home', 'success');
+        } else {
+            toast('Caminho do home não retornado', 'error');
+        }
+    } catch (e) {
+        console.error('getMyHome error', e);
+        toast('Erro ao conectar com o servidor', 'error');
     }
 }
 

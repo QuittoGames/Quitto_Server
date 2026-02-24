@@ -63,7 +63,7 @@ class MainService:
                 "version": "1.0.0",
                 "protocol": "mcp"
             },
-            "bases": {k: str(v) for k, v in data.BASES.items()},
+            "bases": {k: str(v) for k, v in data.GLOBAL_PATHS.items()},
             "routes": {
                 "files": [
                     "GET /files/list/{base}",
@@ -80,7 +80,7 @@ class MainService:
                     "GET /api/info/network",
                     "GET /api/info/datetime",
                     "GET /api/info/all",
-                    "GET /api/bases",
+                    "GET /api/global_paths",
                     "GET /api/health"
                 ],
                 "main": [
@@ -108,7 +108,7 @@ class MainService:
                 "tool_registry_version": "1.0",
                 "protocol": "mcp"
             },
-            "bases": {k: str(v) for k, v in data.BASES.items()},
+            "bases": {k: str(v) for k, v in data.GLOBAL_PATHS.items()},
             "routes": {
                 "files": [
                     "GET /files/list/{base}",
@@ -125,7 +125,7 @@ class MainService:
                     "GET /api/info/network",
                     "GET /api/info/datetime",
                     "GET /api/info/all",
-                    "GET /api/bases",
+                    "GET /api/global_paths",
                     "GET /api/health"
                 ],
                 "main": [
