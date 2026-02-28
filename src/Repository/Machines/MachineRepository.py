@@ -45,7 +45,8 @@ class MachineRepository:
                 name=row.get("name"),
                 interface=row.get("interface"),
                 vendor=row.get("vendor"),
-                is_randomized=bool(row.get("is_randomized"))
+                is_randomized=bool(row.get("is_randomized")),
+                url_connect=row.get("url_connect")
             )
             return machine_local
         except Exception as E:
@@ -65,7 +66,8 @@ class MachineRepository:
                 name=row.get("name"),
                 interface=row.get("interface"),
                 vendor=row.get("vendor"),
-                is_randomized=bool(row.get("is_randomized"))
+                is_randomized=bool(row.get("is_randomized")),
+                url_connect=row.get("url_connect")
             )
             return machine_local
         except Exception as E:
@@ -86,7 +88,8 @@ class MachineRepository:
                         name=row.get("name"),
                         interface=row.get("interface"),
                         vendor=row.get("vendor"),
-                        is_randomized=bool(row.get("is_randomized"))
+                        is_randomized=bool(row.get("is_randomized")),
+                        url_connect=row.get("url_connect")
                     )
                 )
             return machines
@@ -105,8 +108,8 @@ class MachineRepository:
             # Use table name 'machines'
             self.db.execute_query(
                 """
-                INSERT INTO machines (address, name, interface, vendor, is_randomized)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO machines (address, name, interface, vendor, is_randomized, url_connect)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 """,
                 (
                     machine.address,
@@ -114,6 +117,7 @@ class MachineRepository:
                     machine.interface,
                     machine.vendor,
                     machine.is_randomized,
+                    getattr(machine, 'url_connect', None),
                 ),
                 fetch=False
             )

@@ -102,16 +102,16 @@ function setOnline(ok) {
 async function loadBases() {
     try {
         const res = await fetch(`${API}/api/global_paths`);
-        if (!res.ok) {
-            const txt = await res.text().catch(() => '');
-            toast('Erro ao carregar bases: ' + (txt || `HTTP ${res.status}`), 'error');
+            if (!res.ok) {
+                const txt = await res.text().catch(() => '');
+                toast('Erro ao carregar GLOBAL PATHS: ' + (txt || `HTTP ${res.status}`), 'error');
             return;
         }
         let data = null;
         try {
-            data = await res.json();
+              data = await res.json();
         } catch (err) {
-            toast('Erro ao interpretar resposta das bases: ' + err.message, 'error');
+              toast('Erro ao interpretar resposta das GLOBAL PATHS: ' + err.message, 'error');
             return;
         }
         const container = document.getElementById('fm-bases');
@@ -254,8 +254,8 @@ async function getMyHome() {
         });
 
         if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            toast(err.detail || 'Erro ao obter home do usuário', 'error');
+              const err = await res.json().catch(() => ({}));
+              toast(err.detail || 'Erro ao obter home do usuário', 'error');
             return;
         }
 
@@ -341,6 +341,8 @@ async function browseDirectRefresh(absPath) {
 
 async function browseBase(path = '') {
     if (!currentBase) { toast('Selecione uma base', 'error'); return; }
+        if (!currentBase) { toast('Selecione um GLOBAL PATH', 'error'); return; }
+        if (!currentBase) { toast('Selecione um GLOBAL PATH', 'error'); return; }
     
     if (currentPath !== path) {
         pathHistory.push(currentPath);

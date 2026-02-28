@@ -6,6 +6,8 @@ import logging
 from dataclasses import dataclass
 import json
 from Repository.User.UserRepository import UserRepository
+from models.Machine import Machine
+import requests
 
 logger = logging.getLogger("server.services.files.filestools")
 
@@ -49,29 +51,19 @@ class FilesTools:
 			return f"{round(size_bytes/(1024**3), 2)} GB"
 
 	@staticmethod
-	def read_file_with_path(path) -> dict:
+	def read_file_with_path(path:Path,machine:Machine) -> dict:
 		try:
-			p = Path(path) if not isinstance(path, Path) else path
-		except Exception:
-			return {"error": "invalid path"}
+			url = f"{machine.url_connect}/read_path"
 
-		try:
-			if not p.exists():
-				return {"error": "file not found"}
-			if not p.is_file():
-				return {"error": "path is not a file"}
-
-			content = p.read_text(encoding="utf-8", errors="replace")
-			return {
-				"path": str(p),
-				"size_bytes": p.stat().st_size,
-				"content": content
+			payload:dict = {
+				"path":str(path.absolute())
 			}
-		except PermissionError:
-			return {"error": "permission denied"}
-		except Exception as e:
-			return {"error": str(e)}
 
+			request = requests.post(machine.url_connect,json=payload,timeout=10)
+			return request.json()
+		except Exception as E:
+			logger.error("[ERROR] Error in get contnet with read_path by id machie , Erro: %s",E)
+	
 	@staticmethod
 	def resolve_base_root(entry):
 		if entry is None:

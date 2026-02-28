@@ -172,6 +172,9 @@ start_uvicorn(){
 	# shellcheck disable=SC1090
 	source "$VENV_DIR/bin/activate" || true
 
+	# ensure the uvicorn port is free (avoid "address already in use")
+	kill_process_on_port "$UVICORN_PORT" || true
+
 	if [ "$FOREGROUND" = true ]; then
 		# Clear logs before starting so the TUI shows fresh output
 		clear_uvicorn_log || true
@@ -191,6 +194,8 @@ start_uvicorn_background_single(){
 	# ensure venv is active
 	# shellcheck disable=SC1090
 	source "$VENV_DIR/bin/activate" || true
+	# ensure the uvicorn port is free before background start
+	kill_process_on_port "$UVICORN_PORT" || true
 	clear_uvicorn_log || true
 	nohup stdbuf -oL python -m uvicorn index:app --host "$UVICORN_HOST" --port "$UVICORN_PORT" --proxy-headers --log-level info > uvicorn.log 2>&1 &
 	echo $! > uvicorn.pid

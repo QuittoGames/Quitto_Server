@@ -22,6 +22,8 @@ class data:
     # Keep an empty placeholder for compatibility; `resolve_bases` will prefer
     # the MACHINE_BASES defined in the MachineService module if available.
     BASES: ClassVar[Dict[str, Any]] = {}
+    # Backwards-compatible container used across services to register global path bases
+    GLOBAL_PATHS: ClassVar[Dict[str, Any]] = {}
     @classmethod
     def load_machines(cls) -> None:
         """Load machines into memory.
@@ -72,9 +74,17 @@ class data:
         # Ensure machines are loaded (delegates to MachineService.load_machines)
         cls.load_machines()
 
-        # Prefer MACHINE_BASES defined in MachineService if available
+        # Prefer MACHINE_BASES defined in MachineService if available.
+        # The MACHINE_BASES may be defined as a module-level symbol or as a
+        # class attribute on `MachineService`. Try both locations.
         try:
-            from Services.MachineService.MachineService import MACHINE_BASES as SOURCE_BASES
+            import Services.MachineService.MachineService as ms_mod
+            if hasattr(ms_mod, 'MACHINE_BASES'):
+                SOURCE_BASES = getattr(ms_mod, 'MACHINE_BASES')
+            elif hasattr(ms_mod, 'MachineService') and hasattr(ms_mod.MachineService, 'MACHINE_BASES'):
+                SOURCE_BASES = ms_mod.MachineService.MACHINE_BASES
+            else:
+                SOURCE_BASES = cls.BASES or {}
         except Exception:
             SOURCE_BASES = cls.BASES or {}
 
@@ -95,6 +105,12 @@ class data:
                     resolved[base_name].append(entry)
 
         cls.RESOLVED_BASES = resolved
+        # Keep backward-compatible GLOBAL_PATHS reference (maps to original MACHINE_BASES)
+        try:
+            # SOURCE_BASES may contain Path/Machine entries; store the original mapping
+            cls.GLOBAL_PATHS = SOURCE_BASES or {}
+        except Exception:
+            cls.GLOBAL_PATHS = {}
         return resolved
 
     @classmethod

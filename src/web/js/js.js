@@ -150,16 +150,16 @@ async function fetchBases() {
         const res  = await fetch(`${API_BASE}/api/global_paths`, { credentials: 'include' });
         if (!res.ok) {
             const text = await res.text().catch(() => '');
-            log(`Erro ao buscar bases: HTTP ${res.status} - ${text.split('\n')[0]}`, 'error');
-            document.getElementById('bases-list').innerHTML = '<div class="base-item base-status error">Erro ao carregar bases</div>';
+            log(`Erro ao buscar GLOBAL PATHS: HTTP ${res.status} - ${text.split('\n')[0]}`, 'error');
+                document.getElementById('bases-list').innerHTML = '<div class="base-item base-status error">Erro ao carregar GLOBAL PATHS</div>';
             return;
         }
         let data = null;
         try {
             data = await res.json();
         } catch (err) {
-            log(`Erro ao interpretar resposta das bases: ${err.message}`, 'error');
-            document.getElementById('bases-list').innerHTML = '<div class="base-item base-status error">Erro ao carregar bases</div>';
+            log(`Erro ao interpretar resposta das GLOBAL PATHS: ${err.message}`, 'error');
+            document.getElementById('bases-list').innerHTML = '<div class="base-item base-status error">Erro ao carregar GLOBAL PATHS</div>';
             return;
         }
         const container = document.getElementById('bases-list');
@@ -184,8 +184,8 @@ async function fetchBases() {
             `;
         }
     } catch (e) {
-        log(`Erro ao buscar bases: ${e.message}`, 'error');
-        document.getElementById('bases-list').innerHTML = '<div class="base-item base-status error">Erro ao carregar bases</div>';
+        log(`Erro ao buscar GLOBAL PATHS: ${e.message}`, 'error');
+        document.getElementById('bases-list').innerHTML = '<div class="base-item base-status error">Erro ao carregar GLOBAL PATHS</div>';
     }
 }
 

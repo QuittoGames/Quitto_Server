@@ -30,6 +30,7 @@ class SetupProjectService:
             raise HTTPException(status_code=404, detail="ProjectSetup3.0 not found")
         
         service: Path = Path("/run/media/quitto/DATA/Projects/Python/ProjectSetup-3.0/projectsetup3/Services/CLIService.py")
+        
         logger.debug("Service Path: {}".format(service))
 
         result = subprocess.run(

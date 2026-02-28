@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File, Query, Request
 from fastapi.responses import FileResponse
 from pathlib import Path
+from models.Machine import Machine
 from data import data
 from .FilesTools import FilesTools
 import os
@@ -9,6 +10,7 @@ import psutil
 import mimetypes
 from datetime import datetime
 from typing import Optional
+from Repository.Machines.MachineRepository import MachineRepository
 from fastapi.responses import RedirectResponse
 import logging
 
@@ -37,8 +39,13 @@ def read_file_with_path(path) -> dict:
 def resolve_base_root(entry):
     return FilesTools.resolve_base_root(entry)
 
-def _read_file_path(file_path: Path) -> dict:
-    return FilesTools._read_file_path(file_path)
+def _read_file_path(file_path: Path,machine_id) -> dict:
+    try:
+        repo = MachineRepository()
+        machine:Machine = repo.get_machine_by_id(id=id)
+        return FilesTools._read_file_path(file_path,machine)
+    except Exception as E:
+        logger.error("[ERROR] Error in get machine, Errro: %s",E)
 
 def _get_file_path_for(base: str, rel_path: str):
     return FilesTools._get_file_path_for(base, rel_path)

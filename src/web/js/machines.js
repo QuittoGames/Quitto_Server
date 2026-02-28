@@ -36,7 +36,7 @@ async function fetchMachines() {
         if (wolSelect) wolSelect.innerHTML = '<option value="">-- Selecione --</option>';
 
         if (!machines || machines.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="6" class="fm-empty">Nenhuma máquina cadastrada</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="7" class="fm-empty">Nenhuma máquina cadastrada</td></tr>';
             if (machineCount) machineCount.textContent = '0';
             if (typeof setStatus === 'function') setStatus(false);
             return;
@@ -52,6 +52,7 @@ async function fetchMachines() {
                 <td>${machine.interface || ''}</td>
                 <td>${machine.vendor || ''}</td>
                 <td>${machine.is_randomized ? 'Sim' : 'Não'}</td>
+                <td>${machine.url_connect ? `<a href="${machine.url_connect}" target="_blank" rel="noopener" class="fm-link">Conectar</a>` : ''}</td>
             `;
             tableBody.appendChild(row);
 
@@ -69,7 +70,7 @@ async function fetchMachines() {
         console.error('Erro fetchMachines:', err);
         const tableBody = document.getElementById('machine-list');
         const machineCount = document.getElementById('machine-count');
-        if (tableBody) tableBody.innerHTML = '<tr><td colspan="6" class="fm-empty">Erro ao buscar máquinas</td></tr>';
+        if (tableBody) tableBody.innerHTML = '<tr><td colspan="7" class="fm-empty">Erro ao buscar máquinas</td></tr>';
         if (machineCount) machineCount.textContent = '0';
         if (typeof setStatus === 'function') setStatus(false);
     }

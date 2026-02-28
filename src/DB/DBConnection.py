@@ -4,9 +4,10 @@ import logging
 from typing import Optional, Any, Dict
 
 import psycopg2
+import threading
 from psycopg2 import OperationalError
 from psycopg2.extras import RealDictCursor
-from psycopg2.pool import ThreadedConnectionPool
+from psycopg2.pool import SimpleConnectionPool
 
 logger = logging.getLogger("mcp.db")
 
@@ -35,7 +36,24 @@ class DBConnection:
     ) -> None:
         self.minconn = minconn
         self.maxconn = maxconn
-        self._pool: Optional[ThreadedConnectionPool] = None
+        # Shared pool across instances to avoid creating many pools
+        self._pool: Optional[SimpleConnectionPool] = None
+        # ensure class-level helpers exist
+        if not hasattr(DBConnection, "_global_pool"):
+            DBConnection._global_pool = None
+        if not hasattr(DBConnection, "_pool_lock"):
+            DBConnection._pool_lock = threading.Lock()
+        if not hasattr(DBConnection, "_reuse_logged"):
+            DBConnection._reuse_logged = False
+
+        # Fast path: if global pool exists, reuse it (no locking)
+        if DBConnection._global_pool:
+            self._pool = DBConnection._global_pool
+            # log reuse only once to avoid spamming logs
+            if not DBConnection._reuse_logged:
+                logger.info("Reusing existing DB connection pool")
+                DBConnection._reuse_logged = True
+            return
 
         # Build connection parameters
         database_url = os.getenv("DATABASE_URL")
@@ -71,17 +89,37 @@ class DBConnection:
             if sslmode:
                 conn_kwargs["sslmode"] = sslmode
 
-        # Attempt to create a threaded connection pool with retries
+        # Allow override of max connections via env var
+        try:
+            env_max = int(os.getenv("POSTGRES_MAX_CONN", "0"))
+            if env_max > 0:
+                self.maxconn = env_max
+        except Exception:
+            pass
+
+        # Attempt to create a SimpleConnectionPool with retries
+        # Use a lock to avoid multiple threads creating multiple pools concurrently
+        with DBConnection._pool_lock:
+            # another thread may have created the pool while we waited
+            if DBConnection._global_pool:
+                self._pool = DBConnection._global_pool
+                if not DBConnection._reuse_logged:
+                    logger.info("Reusing existing DB connection pool")
+                    DBConnection._reuse_logged = True
+                return
         attempt = 0
         while attempt < retries:
             try:
                 if "dsn" in conn_kwargs:
-                    # psycopg2 ThreadedConnectionPool does not accept dsn key directly,
-                    # so pass the DSN string as the first positional argument.
-                    self._pool = ThreadedConnectionPool(self.minconn, self.maxconn, conn_kwargs["dsn"])
+                    # Create a SimpleConnectionPool using a DSN string
+                    self._pool = SimpleConnectionPool(self.minconn, self.maxconn, dsn=conn_kwargs["dsn"])
                 else:
-                    self._pool = ThreadedConnectionPool(self.minconn, self.maxconn, **conn_kwargs)
+                    # Create a SimpleConnectionPool using explicit connection parameters
+                    self._pool = SimpleConnectionPool(self.minconn, self.maxconn, **conn_kwargs)
                 logger.info("DB connection pool created")
+                # store global pool for reuse
+                DBConnection._global_pool = self._pool
+                DBConnection._reuse_logged = True
                 break
             except OperationalError as e:
                 attempt += 1

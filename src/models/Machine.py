@@ -11,6 +11,7 @@ class Machine:
     interface: Optional[str] = None   # eth0, wlan0
     vendor: Optional[str] = None      # Intel, Apple, Realtek
     is_randomized: bool = False    # MAC aleatório
+    url_connect: Optional[str] 
 
     def is_valid(self) -> bool:
         return bool(

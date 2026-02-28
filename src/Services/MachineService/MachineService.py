@@ -101,6 +101,7 @@ class MachineService:
                 "interface": m.interface,
                 "vendor": m.vendor,
                 "is_randomized": m.is_randomized,
+                "url_connect": getattr(m, 'url_connect', None),
             }
             for m in machines
         ]
