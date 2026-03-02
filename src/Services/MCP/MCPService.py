@@ -22,14 +22,14 @@ class MCPService:
     @routerMCP.post("/initialize")
     def mcp_initialize():
         return {
-            "protocolVersion": "0.1",
+            "protocolVersion": "0.2",
             "capabilities": {
                 "tools": True,
                 "resources": True
             },
             "serverInfo": {
                 "name": "local-filesystem",
-                "version": "0.1"
+                "version": "0.2"
             }
         }
 
@@ -148,7 +148,7 @@ class MCPService:
 
         return {
             "tool_registry_version": "1.0",
-            "mcp_version": "0.2",
+            "mcp_version": "0.3",
             "resources": resources,
             "agent": {
                 "id": agent.id,

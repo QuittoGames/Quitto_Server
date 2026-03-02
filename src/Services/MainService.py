@@ -81,7 +81,7 @@ class MainService:
         return {
             "server": {
                 "name": "Quitto Server",
-                "version": "1.2.0",
+                "version": "1.2.2",
                 "protocol": "mcp"
             },
                 "bases": GlobalPaths.from_mapping(data.GLOBAL_PATHS or {}).to_simple_map(),
@@ -120,7 +120,7 @@ class MainService:
         return {
             "server": {
                 "name": "Quitto Server",
-                "version": "1.0.0",
+                "version": "1.2.2",
                 "protocol": "server"
             },
             "server": {
