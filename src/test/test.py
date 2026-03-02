@@ -93,6 +93,8 @@ def main():
     print(status)
     print(body)
 
+    print(data.get_global_paths_for_api())
+
 
 if __name__ == "__main__":
     main()
