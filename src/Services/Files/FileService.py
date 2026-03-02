@@ -80,6 +80,15 @@ class FileService:
     @routerFile.get("/list/{base}")
     def list_files(base: str):
         """Lista arquivos .md de uma base"""
+        # Prefer remote machine when base is reported by a machine
+        try:
+            if FilesTools.base_has_remote(base):
+                forwarded = FilesTools.forward_to_machines(f"/files/list/{base}")
+                if forwarded is not None:
+                    return forwarded
+        except Exception:
+            pass
+
         entry = data.GLOBAL_PATHS.get(base)
         root = resolve_base_root(entry)
         if not root:
@@ -96,6 +105,15 @@ class FileService:
     @routerFile.get("/read/{base}")
     def read_file(base: str, path: str):
         """Lê conteúdo de um arquivo"""
+        # Prefer remote machine when base is reported by a machine
+        try:
+            if FilesTools.base_has_remote(base):
+                forwarded = FilesTools.forward_to_machines(f"/files/read/{base}", params={"path": path})
+                if forwarded is not None:
+                    return forwarded
+        except Exception:
+            pass
+
         candidate, err = _get_file_path_for(base, path)
         if err:
             # If local resolution failed, try forwarding to machines
@@ -146,6 +164,15 @@ class FileService:
 
         # Case 1: base is a registered key in data.GLOBAL_PATHS
         if base in data.GLOBAL_PATHS:
+            # Prefer remote machine when base is reported remotely
+            try:
+                if FilesTools.base_has_remote(base) and not (machine_id or mac):
+                    params = { 'base': base, 'filename': filename, 'limit': limit }
+                    forwarded = FilesTools.forward_to_machines(f"/files/find", params=params)
+                    if forwarded is not None:
+                        return forwarded
+            except Exception:
+                pass
             entries = data.GLOBAL_PATHS.get(base) or []
             # normalize to list
             if not isinstance(entries, list):
@@ -286,6 +313,26 @@ class FileService:
                         return {"error": "remote request failed", "details": str(e)}
             except Exception as E:
                 logger.error('Error resolving machine for search_files: %s', E)
+
+        # Prefer remote when base reported by machine
+        try:
+            if FilesTools.base_has_remote(base) and not (machine_id or mac):
+                params = {
+                    'query': query,
+                    'ext': ext,
+                    'category': category,
+                    'min_size': min_size,
+                    'max_size': max_size,
+                    'sort': sort,
+                    'limit': limit
+                }
+                if content:
+                    params['content'] = content
+                forwarded = FilesTools.forward_to_machines(f"/files/search/{base}", params=params)
+                if forwarded is not None:
+                    return forwarded
+        except Exception:
+            pass
 
         entry = data.GLOBAL_PATHS.get(base)
         
@@ -519,6 +566,15 @@ class FileService:
                         return {"error": "remote request failed", "details": str(e)}
             except Exception as E:
                 logger.error('Error resolving machine for browse_directory: %s', E)
+
+        # Prefer remote when base reported by machine
+        try:
+            if FilesTools.base_has_remote(base) and not (machine_id or mac):
+                forwarded = FilesTools.forward_to_machines(f"/files/browse/{base}", params={"path": path})
+                if forwarded is not None:
+                    return forwarded
+        except Exception:
+            pass
 
         # Local browsing fallback
         entry = data.GLOBAL_PATHS.get(base)

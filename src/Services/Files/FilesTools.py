@@ -119,6 +119,28 @@ class FilesTools:
 		return None
 
 	@staticmethod
+	def base_has_remote(base: str) -> bool:
+		"""Return True if `base` in `data.GLOBAL_PATHS` references any Machine with a reachable `url_connect`."""
+		try:
+			entries = data.GLOBAL_PATHS.get(base) or []
+			if not isinstance(entries, list):
+				entries = [entries]
+			for e in entries:
+				# direct Machine instance
+				if isinstance(e, Machine):
+					if getattr(e, 'url_connect', None):
+						return True
+				# machine id
+				if isinstance(e, int):
+					for m in getattr(data, 'MACHINES', []) or []:
+						if m and getattr(m, 'id', None) == e and getattr(m, 'url_connect', None):
+							return True
+			# no remote found
+			return False
+		except Exception:
+			return False
+
+	@staticmethod
 	def _read_file_path(file_path: Path) -> dict:
 		return FilesTools.read_file_with_path(file_path)
 
@@ -194,6 +216,12 @@ class FilesTools:
 
 	@staticmethod
 	def search_file_in_base(base: str, filename: str, limit: int = 1):
+		# If base is handled by a remote machine, prefer remote lookup
+		try:
+			if FilesTools.base_has_remote(base):
+				return None
+		except Exception:
+			pass
 		if base not in data.GLOBAL_PATHS:
 			return None
 
