@@ -105,21 +105,13 @@ class WebService:
     def list_global_paths():
         """Lista as global_paths (registered global paths) disponíveis"""
         try:
-            # Ensure MACHINE_BASES / BASES are loaded and resolved
+            # Primary: API-friendly flat view (uses remote machines)
             try:
-                data.load_machines()
+                flat = data.get_global_paths_for_api()
             except Exception:
-                # non-fatal; proceed with whatever is available
-                pass
+                flat = []
 
-            # Ensure we have an up-to-date view including remote machines
-            try:
-                data.load_global_paths()
-            except Exception:
-                # non-fatal
-                pass
-
-            # Provide both legacy-friendly summary and a structured `entries` field
+            # Legacy: resolved bases (local Path objects) for backward compatibility
             legacy = {}
             try:
                 resolved = data.get_resolved_bases() or {}
@@ -136,9 +128,19 @@ class WebService:
             except Exception:
                 legacy = {}
 
-            gp = GlobalPaths.from_mapping(data.GLOBAL_PATHS or {})
+            # Structured `entries` field: build from mapping when available
+            try:
+                # ensure GLOBAL_PATHS mapping is populated for structured representation
+                try:
+                    data.load_global_paths()
+                except Exception:
+                    pass
+                gp = GlobalPaths.from_mapping(data.GLOBAL_PATHS or {})
+                entries = gp.to_primitive()
+            except Exception:
+                entries = {}
 
-            return {"legacy": legacy, "entries": gp.to_primitive()}
+            return {"legacy": legacy, "entries": entries, "flat": flat}
         except Exception as e:
             # Retorna JSON com erro para evitar resposta HTML que quebra o parse no frontend
             return {"error": f"failed to list global_paths: {str(e)}"}

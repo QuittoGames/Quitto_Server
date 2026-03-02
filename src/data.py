@@ -208,6 +208,12 @@ class data:
         plain dicts so API handlers can easily serialize the result.
         """
         merged = cls.load_global_paths(timeout=timeout) or {}
+        # Ensure the class-level GLOBAL_PATHS reflects the merged mapping
+        try:
+            cls.GLOBAL_PATHS = merged or {}
+        except Exception:
+            # non-fatal: leave GLOBAL_PATHS as-is
+            pass
         out: List[Dict[str, Any]] = []
 
         for base_name, entries in merged.items():

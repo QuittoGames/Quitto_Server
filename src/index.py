@@ -71,6 +71,7 @@ async def main():
         await tool.add_path_modules(data_local)
         await tool.add_rotes(app)
         data_local.load_apps()
+        data_local.get_global_paths_for_api()
         data_local.load_machines()
         if data_local.Debug:
             await tool.verify_modules()

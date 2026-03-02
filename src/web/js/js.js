@@ -165,21 +165,46 @@ async function fetchBases() {
         const container = document.getElementById('bases-list');
         container.innerHTML = '';
 
-        // Support both legacy mapping and new `entries` array returned by the
-        // backend. New format: { legacy: {...}, entries: [{base, path, machine}, ...] }
-        let map = {};
-        if (data && Array.isArray(data.entries)) {
-            for (const e of data.entries) {
-                const name = e.base || '(unknown)';
-                if (!map[name]) map[name] = { paths: [], machines: [] };
-                if (e.path) map[name].paths.push(e.path);
-                if (e.machine) map[name].machines.push(e.machine);
+        // Support both legacy mapping and new `entries` formats returned by
+        // the backend. Server may return either:
+        // - legacy: { BASE: { path: [...], exists, readable }, ... }
+        // - new: { legacy: {...}, entries: { BASE: [ {type:'path'|'machine'..., ...}, ... ] } }
+        const map = {};
+
+        if (data && data.entries) {
+            // entries may be an array of {base,...} (older new-format) or an
+            // object mapping base->list (current server implementation).
+            if (Array.isArray(data.entries)) {
+                for (const e of data.entries) {
+                    const name = e.base || '(unknown)';
+                    if (!map[name]) map[name] = { paths: [], machines: [] };
+                    if (e.path) map[name].paths.push(e.path);
+                    if (e.machine) map[name].machines.push(e.machine);
+                }
+            } else if (typeof data.entries === 'object') {
+                for (const [name, list] of Object.entries(data.entries)) {
+                    if (!map[name]) map[name] = { paths: [], machines: [] };
+                    for (const item of list || []) {
+                        if (item.type === 'path') map[name].paths.push(item.path || '');
+                        else if (item.type === 'machine' || item.type === 'machine_id') map[name].machines.push(item);
+                        else if (item.path) map[name].paths.push(item.path);
+                    }
+                }
+            }
+            // Also accept legacy summary if present
+            if (data.legacy && typeof data.legacy === 'object') {
+                for (const [name, info] of Object.entries(data.legacy)) {
+                    if (!map[name]) map[name] = { paths: [], machines: [] };
+                    const paths = Array.isArray(info.path) ? info.path : [info.path];
+                    map[name].paths.push(...paths.filter(Boolean));
+                    map[name].exists = info.exists;
+                    map[name].readable = info.readable;
+                }
             }
         } else {
-            // legacy response: { BASE: { path: [...], exists: bool, readable: bool }, ... }
-            for (const [name, info] of Object.entries(data)) {
+            // legacy-only response
+            for (const [name, info] of Object.entries(data || {})) {
                 map[name] = { paths: Array.isArray(info.path) ? info.path.slice() : [info.path], machines: [] };
-                // keep legacy flags
                 map[name].exists = info.exists;
                 map[name].readable = info.readable;
             }

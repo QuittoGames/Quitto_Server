@@ -146,17 +146,37 @@ async function loadBases() {
         const container = document.getElementById('fm-bases');
         container.innerHTML = '';
 
-        // Accept both legacy mapping and new `entries` array.
+        // Accept both legacy mapping and new `entries` formats.
         const map = {};
-        if (data && Array.isArray(data.entries)) {
-            for (const e of data.entries) {
-                const name = e.base || '(unknown)';
-                if (!map[name]) map[name] = { paths: [], machines: [] };
-                if (e.path) map[name].paths.push(e.path);
-                if (e.machine) map[name].machines.push(e.machine);
+        if (data && data.entries) {
+            if (Array.isArray(data.entries)) {
+                for (const e of data.entries) {
+                    const name = e.base || '(unknown)';
+                    if (!map[name]) map[name] = { paths: [], machines: [] };
+                    if (e.path) map[name].paths.push(e.path);
+                    if (e.machine) map[name].machines.push(e.machine);
+                }
+            } else if (typeof data.entries === 'object') {
+                for (const [name, list] of Object.entries(data.entries)) {
+                    if (!map[name]) map[name] = { paths: [], machines: [] };
+                    for (const item of list || []) {
+                        if (item.type === 'path') map[name].paths.push(item.path || '');
+                        else if (item.type === 'machine' || item.type === 'machine_id') map[name].machines.push(item);
+                        else if (item.path) map[name].paths.push(item.path);
+                    }
+                }
+            }
+            if (data.legacy && typeof data.legacy === 'object') {
+                for (const [name, info] of Object.entries(data.legacy)) {
+                    if (!map[name]) map[name] = { paths: [], machines: [] };
+                    const paths = Array.isArray(info.path) ? info.path : [info.path];
+                    map[name].paths.push(...paths.filter(Boolean));
+                    map[name].exists = info.exists;
+                    map[name].readable = info.readable;
+                }
             }
         } else {
-            for (const [name, info] of Object.entries(data)) {
+            for (const [name, info] of Object.entries(data || {})) {
                 map[name] = { paths: Array.isArray(info.path) ? info.path.slice() : [info.path], machines: [], exists: info.exists, readable: info.readable };
             }
         }
