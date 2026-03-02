@@ -25,6 +25,16 @@
             <div class="login-error" id="login-error"></div>
         </form>
     </div>
+    <script>
+    // expose API_BASE for frontend scripts; prefer the same :3333 fallback used elsewhere
+    (function(){
+        const origin = window.location.origin;
+        const fallback = origin.includes('3333') ? origin : `${window.location.protocol}//${window.location.hostname}:3333`;
+        // default API base (host:port) — do NOT include the UI prefix `/server`
+        window.API_BASE = `${fallback}`;
+    })();
+    </script>
     <script src="/js/login.js"></script>
 </body>
 </html>
+

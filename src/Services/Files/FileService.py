@@ -17,6 +17,8 @@ import logging
 # Logger specific to this service: server.services.files.fileservice
 logger = logging.getLogger("server.services.files.fileservice")
 
+import requests
+
 routerFile = APIRouter(prefix="/files", tags=["Files"])
 
 # ═══════════════════════════════════════════════════════════════
@@ -41,9 +43,22 @@ def resolve_base_root(entry):
 
 def _read_file_path(file_path: Path,machine_id) -> dict:
     try:
-        repo = MachineRepository()
-        machine:Machine = repo.get_machine_by_id(id=id)
-        return FilesTools._read_file_path(file_path,machine)
+        # Resolve machine by id via in-memory cache first (data.MACHINES),
+        # then fall back to repository lookup.
+        machine = None
+        if machine_id is not None:
+            # Check loaded machines first
+            for m in data.MACHINES:
+                if m and getattr(m, 'id', None) == machine_id:
+                    machine = m
+                    break
+            if machine is None:
+                repo = MachineRepository()
+                try:
+                    machine = repo.get_machine_by_id(machine_id)
+                except Exception:
+                    machine = None
+        return FilesTools._read_file_path(file_path, machine)
     except Exception as E:
         logger.error("[ERROR] Error in get machine, Errro: %s",E)
 
@@ -83,7 +98,7 @@ class FileService:
         return _read_file_path(candidate)
 
     @routerFile.get("/find")
-    def find_in_base(base: str = Query(..., description="Base name from data.GLOBAL_PATHS or an absolute path"), filename: str = Query(..., description="Filename or relative path to find"), limit: int = Query(50, description="Max matches to return")):
+    def find_in_base(base: str = Query(..., description="Base name from data.GLOBAL_PATHS or an absolute path"), filename: str = Query(..., description="Filename or relative path to find"), limit: int = Query(50, description="Max matches to return"), machine_id: Optional[int] = None, mac: Optional[str] = None):
         """Busca um arquivo dentro de uma base (chave em data.GLOBAL_PATHS) ou em um caminho absoluto.
 
         - Se `base` for uma chave existente em `data.GLOBAL_PATHS`, procura em todas as entradas resolvidas dessa base.
@@ -103,6 +118,23 @@ class FileService:
                 })
             except Exception:
                 return
+
+        # Remote forwarding if machine specified
+        if machine_id or mac:
+            try:
+                machine = FilesTools.resolve_machine(machine_id=machine_id, mac=mac)
+                if machine and getattr(machine, 'url_connect', None):
+                    params = { 'base': base, 'filename': filename, 'limit': limit }
+                    try:
+                        r = requests.get(machine.url_connect.rstrip('/') + '/files/find', params=params, timeout=8)
+                        if r.ok:
+                            return r.json()
+                        return {"error": f"remote HTTP {r.status_code}", "details": r.text[:512]}
+                    except requests.RequestException as e:
+                        logger.error("Error forwarding find to remote machine: %s", e)
+                        return {"error": "remote request failed", "details": str(e)}
+            except Exception as E:
+                logger.error('Error resolving machine for find_in_base: %s', E)
 
         # Case 1: base is a registered key in data.GLOBAL_PATHS
         if base in data.GLOBAL_PATHS:
@@ -216,10 +248,39 @@ class FileService:
         max_size: Optional[int] = Query(None, description="Tamanho máximo em bytes"),
         sort: str = Query("name", description="Ordenar por: name, size, date"),
         limit: int = Query(50, description="Limite de resultados"),
-        content: Optional[str] = Query(None, description="Buscar dentro do conteúdo dos arquivos")
+        content: Optional[str] = Query(None, description="Buscar dentro do conteúdo dos arquivos"),
+        machine_id: Optional[int] = None, mac: Optional[str] = None
     ):
         """Busca avançada de arquivos na base"""
+        # Remote forwarding if machine specified
+        if machine_id or mac:
+            try:
+                machine = FilesTools.resolve_machine(machine_id=machine_id, mac=mac)
+                if machine and getattr(machine, 'url_connect', None):
+                    params = {
+                        'query': query,
+                        'ext': ext,
+                        'category': category,
+                        'min_size': min_size,
+                        'max_size': max_size,
+                        'sort': sort,
+                        'limit': limit
+                    }
+                    if content:
+                        params['content'] = content
+                    try:
+                        r = requests.get(machine.url_connect.rstrip('/') + f'/files/search/{base}', params=params, timeout=8)
+                        if r.ok:
+                            return r.json()
+                        return {"error": f"remote HTTP {r.status_code}", "details": r.text[:512]}
+                    except requests.RequestException as e:
+                        logger.error("Error forwarding search to remote machine: %s", e)
+                        return {"error": "remote request failed", "details": str(e)}
+            except Exception as E:
+                logger.error('Error resolving machine for search_files: %s', E)
+
         entry = data.GLOBAL_PATHS.get(base)
+        
         root = resolve_base_root(entry)
         if not root or not root.exists():
             return {"error": "base not found"}
@@ -426,26 +487,50 @@ class FileService:
             raise HTTPException(status_code=500, detail=f"Erro ao obter informações do filesystem: {str(e)}")
     
     @routerFile.get("/browse/{base}")
-    def browse_directory(base: str, path: str = ""):
-        """Navega por diretórios de uma base com detalhes completos"""
+    def browse_directory(base: str, path: str = "", machine_id: Optional[int] = None, mac: Optional[str] = None):
+        """Navega por diretórios de uma base com detalhes completos.
+
+        Se `machine_id` ou `mac` for fornecido, tenta encaminhar a requisição
+        para a `Machine` remota usando `machine.url_connect`. Caso contrário,
+        executa a navegação localmente.
+        """
+        logger.debug("browse_directory called: base=%s path=%s machine_id=%s mac=%s", base, path, machine_id, mac)
+        # Remote forwarding if machine specified
+        if machine_id or mac:
+            try:
+                machine = FilesTools.resolve_machine(machine_id=machine_id, mac=mac)
+                if machine and getattr(machine, 'url_connect', None):
+                    url = machine.url_connect.rstrip('/') + f"/files/browse/{base}?path={requests.utils.requote_uri(path)}"
+                    try:
+                        r = requests.get(url, timeout=8)
+                        if r.ok:
+                            return r.json()
+                        return {"error": f"remote HTTP {r.status_code}", "details": r.text[:512]}
+                    except requests.RequestException as e:
+                        logger.error("Error forwarding browse to remote machine: %s", e)
+                        return {"error": "remote request failed", "details": str(e)}
+            except Exception as E:
+                logger.error('Error resolving machine for browse_directory: %s', E)
+
+        # Local browsing fallback
         entry = data.GLOBAL_PATHS.get(base)
         root = resolve_base_root(entry)
         if not root or not root.exists():
             return {"error": "base not found"}
-        
+
         target = root / path if path else root
-        
+
         if not target.exists():
             return {"error": "path not found"}
-        
+
         if not target.is_dir():
             return {"error": "path is not a directory"}
-        
+
         items = []
         dir_count = 0
         file_count = 0
         total_size = 0
-        
+
         try:
             for item in sorted(target.iterdir()):
                 try:
@@ -453,13 +538,13 @@ class FileService:
                     is_dir = item.is_dir()
                     ext = item.suffix if not is_dir else ""
                     size = stat.st_size if not is_dir else 0
-                    
+
                     if is_dir:
                         dir_count += 1
                     else:
                         file_count += 1
                         total_size += size
-                    
+
                     items.append({
                         "name": item.name,
                         "type": "dir" if is_dir else "file",
@@ -475,7 +560,7 @@ class FileService:
                     continue
         except PermissionError:
             return {"error": "permission denied"}
-        
+
         return {
             "base": base,
             "current_path": path or "/",
@@ -491,27 +576,30 @@ class FileService:
         }
     
     @routerFile.get("/download/{base}")
-    def download_file(base: str, path: str):
-        """Download de arquivo"""
-        entry = data.GLOBAL_PATHS.get(base)
-        root = resolve_base_root(entry)
-        if not root:
-            raise HTTPException(status_code=404, detail="base not found")
-        
-        file = root / path
-        if not file.exists():
-            raise HTTPException(status_code=404, detail="file not found")
-        
-        if not file.is_file():
-            raise HTTPException(status_code=400, detail="path is not a file")
-        
-        mime = mimetypes.guess_type(str(file))[0] or 'application/octet-stream'
-        
-        return FileResponse(
-            path=str(file),
-            filename=file.name,
-            media_type=mime
-        )
+    def download_file(path: str, machine:Machine):
+        try:
+            url: str = f"{machine.url_connect}/download/?path={path}"
+            response = requests.get(url, stream=True)
+            response.raise_for_status()
+            return FileResponse(
+                content=response.content,
+                filename=Path(path).name,
+                media_type=response.headers.get("content-type", "application/octet-stream")
+            )   
+        except requests.exceptions.Timeout:
+            raise HTTPException(status_code=504, detail="Timeout ao acessar o servidor de arquivos")
+
+        except requests.exceptions.ConnectionError:
+            raise HTTPException(status_code=502, detail="Servidor de arquivos indisponível")
+
+        except requests.exceptions.HTTPError:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail="Erro ao baixar arquivo do servidor remoto"
+            )
+
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
     
     @routerFile.delete("/delete/{base}")
     def delete_item(base: str, path: str):
@@ -598,20 +686,59 @@ class FileService:
     # ═══════════════════════════════════════════════════════════════
 
     @routerFile.get("/browse-path")
-    def browse_path_direct(path: str = Query("/", description="Caminho absoluto no OS")):
-        """Navega por qualquer diretório do OS dado um caminho absoluto"""
+    def browse_path_direct(path: str = Query("/", description="Caminho absoluto no OS"), machine_id: Optional[int] = None, mac: Optional[str] = None):
+        """Navega por qualquer diretório do OS dado um caminho absoluto.
+
+        Se `machine_id` ou `mac` for fornecido, encaminha a requisição para
+        o `machine.url_connect` remoto (`/files/browse-path`). Caso contrário,
+        lista localmente.
+        """
+        # Determine whether the path belongs to a registered global base.
+        match = FilesTools.isGLOBAL_PATH(path_local=path)
+
+        logger.debug("browse_path_direct called: path=%s machine_id=%s mac=%s match=%s", path, machine_id, mac, match)
+
+        # Resolve the preferred target machine: caller-specified wins (machine_id/mac),
+        # otherwise fall back to the machine referenced by GLOBAL_PATHS for this path.
+        target_machine = None
+        if machine_id is not None or mac is not None:
+            target_machine = FilesTools.resolve_machine(machine_id=machine_id, mac=mac)
+
+        if not target_machine and isinstance(match, dict) and match.get('type') == 'machine':
+            target_machine = match.get('machine')
+            if not target_machine and match.get('machine_id'):
+                try:
+                    repo = MachineRepository()
+                    target_machine = repo.get_machine_by_id(match.get('machine_id'))
+                except Exception:
+                    target_machine = None
+
+        # If a remote machine is known and exposes `url_connect`, forward the request.
+        if target_machine and getattr(target_machine, 'url_connect', None):
+            try:
+                base = str(target_machine.url_connect).rstrip('/')
+                url = f"{base}/files/browse-path?path={requests.utils.requote_uri(path)}"
+                r = requests.get(url, timeout=8)
+                if r.ok:
+                    return r.json()
+                raise HTTPException(status_code=502, detail=f"remote HTTP {r.status_code}")
+            except requests.RequestException as e:
+                logger.error("Error forwarding browse_path_direct to remote: %s", e)
+                raise HTTPException(status_code=502, detail="remote request failed")
+
+        # Local behaviour
         target = Path(path)
-        
+
         if not target.exists():
             raise HTTPException(status_code=404, detail="path not found")
         if not target.is_dir():
             raise HTTPException(status_code=400, detail="path is not a directory")
-        
+
         items = []
         dir_count = 0
         file_count = 0
         total_size = 0
-        
+
         try:
             for item in sorted(target.iterdir()):
                 try:
@@ -619,13 +746,13 @@ class FileService:
                     is_dir = item.is_dir()
                     ext = item.suffix if not is_dir else ""
                     size = stat.st_size if not is_dir else 0
-                    
+
                     if is_dir:
                         dir_count += 1
                     else:
                         file_count += 1
                         total_size += size
-                    
+
                     items.append({
                         "name": item.name,
                         "type": "dir" if is_dir else "file",
@@ -641,7 +768,7 @@ class FileService:
                     continue
         except PermissionError:
             raise HTTPException(status_code=403, detail="permission denied")
-        
+
         return {
             "mode": "direct",
             "current_path": str(target),
@@ -790,9 +917,38 @@ class FileService:
         max_size: Optional[int] = Query(None),
         sort: str = Query("name"),
         limit: int = Query(50),
-        content: Optional[str] = Query(None)
+        content: Optional[str] = Query(None),
+        machine_id: Optional[int] = None, mac: Optional[str] = None
     ):
         """Busca avançada por caminho absoluto"""
+        # Remote forwarding if machine specified
+        if machine_id or mac:
+            try:
+                machine = FilesTools.resolve_machine(machine_id=machine_id, mac=mac)
+                if machine and getattr(machine, 'url_connect', None):
+                    params = {
+                        'path': path,
+                        'query': query,
+                        'ext': ext,
+                        'category': category,
+                        'min_size': min_size,
+                        'max_size': max_size,
+                        'sort': sort,
+                        'limit': limit
+                    }
+                    if content:
+                        params['content'] = content
+                    try:
+                        r = requests.get(machine.url_connect.rstrip('/') + '/files/search-path', params=params, timeout=8)
+                        if r.ok:
+                            return r.json()
+                        raise HTTPException(status_code=502, detail=f"remote HTTP {r.status_code}")
+                    except requests.RequestException as e:
+                        logger.error("Error forwarding search_path to remote: %s", e)
+                        raise HTTPException(status_code=502, detail="remote request failed")
+            except Exception as E:
+                logger.error('Error resolving machine for search_path_direct: %s', E)
+
         root = Path(path)
         if not root.exists() or not root.is_dir():
             raise HTTPException(status_code=404, detail="path not found or not a directory")

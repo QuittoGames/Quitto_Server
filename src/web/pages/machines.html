@@ -16,7 +16,8 @@
         // For local testing the API runs on 127.0.0.1:3333 (uvicorn).
         // This forces frontend requests to the local API instead of the page origin.
         // Change if you deploy the API elsewhere.
-        window.API_BASE = 'http://127.0.0.1:3333/server';
+        // expose API base (host:port) without UI prefix
+        window.API_BASE = 'http://127.0.0.1:3333';
     })();
 
     async function quickAuthCheck(){

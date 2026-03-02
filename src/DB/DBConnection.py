@@ -9,7 +9,7 @@ from psycopg2 import OperationalError
 from psycopg2.extras import RealDictCursor
 from psycopg2.pool import SimpleConnectionPool
 
-logger = logging.getLogger("mcp.db")
+logger = logging.getLogger("server.db")
 
 
 class DBConnection:
@@ -65,7 +65,7 @@ class DBConnection:
             dbname = os.getenv("POSTGRES_DB")
             user = os.getenv("POSTGRES_USER")
             password = os.getenv("POSTGRES_PASSWORD")
-            host = os.getenv("POSTGRES_HOST", "localhost")
+            host = os.getenv("POSTGRES_HOST", os.getenv("HOST"))
             port = os.getenv("POSTGRES_PORT", "5432")
             sslmode = os.getenv("POSTGRES_SSLMODE")
 

@@ -39,10 +39,19 @@ class MainService:
 
     @routerMain.get("/login.html")
     def redirect_login():
+        # Serve the login page file directly instead of redirecting
+        html_path = os.path.join(os.path.dirname(__file__), "..", "web", "pages", "login.html")
+        if os.path.exists(html_path):
+            return FileResponse(html_path)
         return RedirectResponse(url="/pages/login.html")
 
     @routerMain.get("/pages/login.html")
     def redirect_pages_login():
+        # The static files mount also serves /pages/*; prefer returning the file
+        html_path = os.path.join(os.path.dirname(__file__), "..", "web", "pages", "login.html")
+        if os.path.exists(html_path):
+            return FileResponse(html_path)
+        # fallback to redirect (should not loop because mount would handle it)
         return RedirectResponse(url="/pages/login.html")
     
     @routerMain.get("/health")

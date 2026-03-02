@@ -10,3 +10,4 @@ for i in range(120):  # passa do limite de 100/min
     r = client.get("/server")
 
 print(r.status_code, r.json())
+

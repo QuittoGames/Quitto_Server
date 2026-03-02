@@ -5,6 +5,7 @@ from models.Machine import Machine
 from models.Agent import Agent
 from Services.MCP.MemoryService import MemoryService
 from Services.Files.FilesTools import FilesTools 
+from Repository.Machines.MachineRepository import MachineRepository
 import logging
 
 
@@ -223,8 +224,24 @@ class MCPService:
             raise HTTPException(status_code=422,detail="[ERROR] Invalid payload type for read_file: expected dict, got {}".format(type(payload).__name__))
         
         path = payload.get("path")
+        if not path:
+            raise HTTPException(status_code=422, detail="Missing required parameter: 'path'")
 
-        content:dict = FilesTools.read_file_with_path(path)
+        # Optional machine reference: accept machine_id or machine_name
+        machine = None
+        machine_id = payload.get("machine_id") or payload.get("id")
+        machine_name = payload.get("machine_name") or payload.get("name")
+        if machine_id or machine_name:
+            try:
+                repo = MachineRepository()
+                if machine_id:
+                    machine = repo.get_machine_by_id(int(machine_id))
+                elif machine_name:
+                    machine = repo.get_machine_by_name(str(machine_name))
+            except Exception:
+                machine = None
+
+        content:dict = FilesTools.read_file_with_path(path, machine)
         if "error" in content:
             raise HTTPException(status_code=404,detail="file not found in selected base")
         

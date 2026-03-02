@@ -84,9 +84,38 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await Promise.all([
         loadBases(),
-        loadFilesystem()
+        loadFilesystem(),
+        loadMachinesForFiles()
     ]);
 });
+
+// currently selected machine id for remote operations (empty = local)
+let selectedMachineId = '';
+
+function ensureMachineSelected() {
+    if (!selectedMachineId) {
+        toast('Selecione uma máquina antes de realizar esta operação', 'error');
+        return false;
+    }
+    return true;
+}
+
+async function loadMachinesForFiles() {
+    try {
+        const sel = document.getElementById('machine-select');
+        if (!sel) return;
+        const res = await fetch(`${API}/machine/all`, { credentials: 'include' });
+        if (!res.ok) return;
+        const machines = await res.json();
+        sel.innerHTML = '<option value="">(nenhuma)</option>' + machines.map(m => `\n<option value="${m.id}">${m.name || m.address}</option>`).join('');
+        sel.addEventListener('change', (e) => {
+            selectedMachineId = sel.value || '';
+            toast(`Máquina selecionada: ${sel.options[sel.selectedIndex].text || '(nenhuma)'}`, 'info');
+        });
+    } catch (e) {
+        console.debug('Could not load machines for files:', e);
+    }
+}
 
 function setOnline(ok) {
     const dot  = document.getElementById('status-dot');
@@ -301,8 +330,10 @@ async function browseDirect(absPath) {
     
     document.getElementById('fm-path-input').value = absPath;
     
+    if (!ensureMachineSelected()) return;
     try {
         const params = new URLSearchParams({ path: absPath });
+        if (selectedMachineId) params.append('machine_id', selectedMachineId);
         const res = await fetch(`${API}/files/browse-path?${params}`);
         const data = await res.json();
         
@@ -323,8 +354,10 @@ async function browseDirectRefresh(absPath) {
     directPath = absPath;
     document.getElementById('fm-path-input').value = absPath;
     
+    if (!ensureMachineSelected()) return;
     try {
         const params = new URLSearchParams({ path: absPath });
+        if (selectedMachineId) params.append('machine_id', selectedMachineId);
         const res = await fetch(`${API}/files/browse-path?${params}`);
         const data = await res.json();
         if (data.detail) return;
@@ -341,6 +374,7 @@ async function browseDirectRefresh(absPath) {
 
 async function browseBase(path = '') {
     if (!currentBase) { toast('Selecione uma base', 'error'); return; }
+    if (!ensureMachineSelected()) return;
         if (!currentBase) { toast('Selecione um GLOBAL PATH', 'error'); return; }
         if (!currentBase) { toast('Selecione um GLOBAL PATH', 'error'); return; }
     
@@ -353,6 +387,7 @@ async function browseBase(path = '') {
     try {
         const params = new URLSearchParams();
         if (path) params.append('path', path);
+        if (selectedMachineId) params.append('machine_id', selectedMachineId);
         
         const res = await fetch(`${API}/files/browse/${currentBase}?${params}`);
         const data = await res.json();
@@ -372,11 +407,13 @@ async function browseBase(path = '') {
 
 async function browseBaseRefresh(path) {
     if (!currentBase) return;
+    if (!ensureMachineSelected()) return;
     currentPath = path;
     
     try {
         const params = new URLSearchParams();
         if (path) params.append('path', path);
+        if (selectedMachineId) params.append('machine_id', selectedMachineId);
         
         const res = await fetch(`${API}/files/browse/${currentBase}?${params}`);
         const data = await res.json();
@@ -445,7 +482,9 @@ function handleDblClick(path, type, name) {
 
 function renderBreadcrumbBase(current) {
     const el = document.getElementById('fm-breadcrumb');
-    const parts = current.split('/').filter(p => p && p !== '/');
+    // guard against undefined/null current
+    if (!current) current = '';
+    const parts = String(current).split('/').filter(p => p && p !== '/');
     
     let html = `<span class="fm-crumb clickable" onclick="browseBase('')">${currentBase}</span>`;
     
@@ -462,7 +501,9 @@ function renderBreadcrumbBase(current) {
 
 function renderBreadcrumbDirect(absPath) {
     const el = document.getElementById('fm-breadcrumb');
-    const parts = absPath.split('/').filter(p => p);
+    // guard against undefined/null absPath
+    if (!absPath) absPath = '/';
+    const parts = String(absPath).split('/').filter(p => p);
     
     let html = `<span class="fm-crumb clickable" onclick="browseDirect('/')">/</span>`;
     
@@ -579,6 +620,7 @@ async function executeSearch() {
     
     let url;
     
+    if (!ensureMachineSelected()) return;
     if (browseMode === 'direct' && directPath) {
         const params = new URLSearchParams({ path: directPath });
         if (query) params.append('query', query);
@@ -587,6 +629,7 @@ async function executeSearch() {
         if (sort)  params.append('sort', sort);
         if (content && query) params.append('content', query);
         params.append('limit', '100');
+        if (selectedMachineId) params.append('machine_id', selectedMachineId);
         url = `${API}/files/search-path?${params}`;
     } else if (currentBase) {
         const params = new URLSearchParams();
@@ -596,12 +639,12 @@ async function executeSearch() {
         if (sort)  params.append('sort', sort);
         if (content && query) params.append('content', query);
         params.append('limit', '100');
+        if (selectedMachineId) params.append('machine_id', selectedMachineId);
         url = `${API}/files/search/${currentBase}?${params}`;
     } else {
         toast('Selecione uma base ou digite um path', 'error');
         return;
     }
-    
     try {
         const res = await fetch(url);
         const data = await res.json();
@@ -666,10 +709,13 @@ async function previewFile(path, name) {
     let url;
     if (browseMode === 'direct') {
         url = `${API}/files/read-path?path=${encodeURIComponent(path)}`;
+        if (selectedMachineId) url += `&machine_id=${selectedMachineId}`;
     } else {
         url = `${API}/files/read/${currentBase}?path=${encodeURIComponent(path)}`;
+        if (selectedMachineId) url += `&machine_id=${selectedMachineId}`;
     }
     
+    if (!ensureMachineSelected()) return;
     try {
         const res = await fetch(url);
         const data = await res.json();
@@ -685,7 +731,7 @@ async function previewFile(path, name) {
             <span>Tamanho: ${data.size_human || data.size_bytes + ' bytes'}</span>
         `;
         
-        const content = data.content || '';
+        const content = data.content || data.text || '';
         document.getElementById('preview-content').textContent = 
             content.length > 5000 ? content.substring(0, 5000) + '\n\n... (truncado — 5KB máx)' : content;
         
@@ -710,9 +756,12 @@ function downloadFile(path) {
     let url;
     if (browseMode === 'direct') {
         url = `${API}/files/download-path?path=${encodeURIComponent(path)}`;
+        if (selectedMachineId) url += `&machine_id=${selectedMachineId}`;
     } else {
         url = `${API}/files/download/${currentBase}?path=${encodeURIComponent(path)}`;
+        if (selectedMachineId) url += `&machine_id=${selectedMachineId}`;
     }
+    if (!ensureMachineSelected()) return;
     window.open(url, '_blank');
     toast(`Download: ${path.split('/').pop()}`, 'success');
 }
@@ -767,7 +816,7 @@ function renderPendingFiles() {
 
 async function confirmUpload() {
     if (pendingUploadFiles.length === 0) return;
-    
+    if (!ensureMachineSelected()) return;
     const progress = document.getElementById('upload-progress');
     const btn = document.getElementById('btn-upload-confirm');
     btn.disabled = true;
