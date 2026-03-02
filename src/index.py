@@ -37,8 +37,19 @@ app.add_middleware(
 
 @app.middleware("http")
 async def pass_through_middleware(request: Request, call_next):
-    # Rate limiter removed — pass requests through directly
-    return await call_next(request)
+    # Log requests and responses to help diagnose redirect loops
+    logger.debug("Incoming request: %s %s", request.method, request.url.path)
+    response = await call_next(request)
+    try:
+        status = getattr(response, 'status_code', 'unknown')
+        loc = response.headers.get('location') if hasattr(response, 'headers') else None
+        if loc:
+            logger.warning("Redirect response for %s -> %s (status=%s)", request.url.path, loc, status)
+        else:
+            logger.debug("Response for %s status=%s", request.url.path, status)
+    except Exception:
+        logger.exception("Error logging response info")
+    return response
 
 @app.on_event("startup")
 async def startup():

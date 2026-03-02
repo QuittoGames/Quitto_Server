@@ -24,12 +24,54 @@ NGROK_URL="${NGROK_URL:-}"
 
 # ================= HELPERS =================
 kill_process_on_port() {
-  ss -lntp | awk -v p=":${1}" '$4~p {print $7}' | grep -oP 'pid=\K\d+' | xargs -r kill -9 || true
+  local port="$1"
+  # If uvicorn.pid exists, try to stop that process first (graceful then SIGKILL)
+  if [ -f uvicorn.pid ]; then
+    pidfilepid=$(cat uvicorn.pid 2>/dev/null || true)
+    if [ -n "$pidfilepid" ] && kill -0 "$pidfilepid" 2>/dev/null; then
+      echo "Stopping process from uvicorn.pid: $pidfilepid"
+      kill "$pidfilepid" 2>/dev/null || true
+      sleep 2
+      if kill -0 "$pidfilepid" 2>/dev/null; then
+        echo "Process still alive, force-killing $pidfilepid"
+        kill -9 "$pidfilepid" 2>/dev/null || true
+      fi
+      rm -f uvicorn.pid
+    fi
+  fi
+
+  # Use lsof to find pids listening on the TCP port (if available)
+  if command -v lsof >/dev/null 2>&1; then
+    pids=$(lsof -ti tcp:"$port" 2>/dev/null || true)
+    if [ -n "$pids" ]; then
+      echo "Killing pids from lsof: $pids"
+      echo "$pids" | xargs -r kill -TERM || true
+      sleep 2
+      echo "$pids" | xargs -r kill -9 || true
+    fi
+  fi
+
+  # Use fuser as another fallback (killing any process using the port)
+  if command -v fuser >/dev/null 2>&1; then
+    fuser -k "${port}/tcp" 2>/dev/null || true
+  fi
+
+  # Final fallback: parse ss output to extract pid and force-kill
+  ss -lntp 2>/dev/null | awk -v p=":${port}" '$4~p {print $7}' | grep -oE 'pid=[0-9]+' | cut -d= -f2 | xargs -r kill -9 || true
 }
 
 stop_uvicorn() {
   if [ -f uvicorn.pid ]; then
-    kill "$(cat uvicorn.pid)" 2>/dev/null || true
+    pidfilepid=$(cat uvicorn.pid 2>/dev/null || true)
+    if [ -n "$pidfilepid" ] && kill -0 "$pidfilepid" 2>/dev/null; then
+      echo "Stopping uvicorn pid $pidfilepid"
+      kill "$pidfilepid" 2>/dev/null || true
+      sleep 2
+      if kill -0 "$pidfilepid" 2>/dev/null; then
+        echo "Force-killing uvicorn pid $pidfilepid"
+        kill -9 "$pidfilepid" 2>/dev/null || true
+      fi
+    fi
     rm -f uvicorn.pid
   fi
 }
