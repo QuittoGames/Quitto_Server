@@ -13,6 +13,23 @@ routerMain = APIRouter()
 # ═══════════════════════════════════════════════════════════════
 # MainService - Rotas principais da aplicação MCP
 # ═══════════════════════════════════════════════════════════════
+def _serve_secure_page(filename: str):
+    """Serve a page from web/pages with basic path-traversal protection and security headers."""
+    base_dir = os.path.join(os.path.dirname(__file__), "..", "web", "pages")
+    target = os.path.normpath(os.path.join(base_dir, filename))
+    base_real = os.path.realpath(base_dir)
+    target_real = os.path.realpath(target)
+    if not target_real.startswith(base_real):
+        logger.warning("Attempted path traversal: %s", filename)
+        return HTMLResponse("<h1>Invalid request</h1>", status_code=400)
+    if os.path.exists(target_real):
+        headers = {
+            "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; frame-ancestors 'none';",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY"
+        }
+        return FileResponse(target_real, headers=headers, media_type="text/html")
+    return HTMLResponse("<h1>Not found</h1>", status_code=404)
 
 class MainService:
     """Service para rotas principais e status do servidor"""
@@ -39,20 +56,14 @@ class MainService:
 
     @routerMain.get("/login.html")
     def redirect_login():
-        # Serve the login page file directly instead of redirecting
-        html_path = os.path.join(os.path.dirname(__file__), "..", "web", "pages", "login.html")
-        if os.path.exists(html_path):
-            return FileResponse(html_path)
-        return RedirectResponse(url="/pages/login.html")
+        # Serve the login page securely (avoid redirects / loops)
+        return _serve_secure_page("login.html")
 
     @routerMain.get("/pages/login.html")
     def redirect_pages_login():
         # The static files mount also serves /pages/*; prefer returning the file
-        html_path = os.path.join(os.path.dirname(__file__), "..", "web", "pages", "login.html")
-        if os.path.exists(html_path):
-            return FileResponse(html_path)
-        # fallback to redirect (should not loop because mount would handle it)
-        return RedirectResponse(url="/pages/login.html")
+        # Use secure serve helper to avoid redirect loops and add security headers
+        return _serve_secure_page("login.html")
     
     @routerMain.get("/health")
     def health_check():
@@ -68,8 +79,8 @@ class MainService:
         """Informações detalhadas do servidor"""
         return {
             "server": {
-                "name": "Quitto MCP Server",
-                "version": "1.0.0",
+                "name": "Quitto Server",
+                "version": "1.2.0",
                 "protocol": "mcp"
             },
             "bases": {k: str(v) for k, v in data.GLOBAL_PATHS.items()},
