@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 from data import data
+from models.GlobalPaths import GlobalPaths
 import os
 import sys
 from pathlib import Path
@@ -111,20 +112,33 @@ class WebService:
                 # non-fatal; proceed with whatever is available
                 pass
 
-            resolved = data.get_resolved_bases() or {}
-            result = {}
-            for name, entries in resolved.items():
-                # entries pode conter Path, Machine ou None; filtramos apenas Path para checar FS
-                path_objs = [p for p in entries if isinstance(p, Path)]
-                path_list = [str(p) for p in path_objs]
-                exists_list = [p.exists() for p in path_objs]
-                readable_list = [os.access(p, os.R_OK) if p.exists() else False for p in path_objs]
-                result[name] = {
-                    "path": path_list,
-                    "exists": all(exists_list) if path_objs else False,
-                    "readable": all(readable_list) if path_objs else False
-                }
-            return result
+            # Ensure we have an up-to-date view including remote machines
+            try:
+                data.load_global_paths()
+            except Exception:
+                # non-fatal
+                pass
+
+            # Provide both legacy-friendly summary and a structured `entries` field
+            legacy = {}
+            try:
+                resolved = data.get_resolved_bases() or {}
+                for name, entries in resolved.items():
+                    path_objs = [p for p in entries if isinstance(p, Path)]
+                    path_list = [str(p) for p in path_objs]
+                    exists_list = [p.exists() for p in path_objs]
+                    readable_list = [os.access(p, os.R_OK) if p.exists() else False for p in path_objs]
+                    legacy[name] = {
+                        "path": path_list,
+                        "exists": all(exists_list) if path_objs else False,
+                        "readable": all(readable_list) if path_objs else False
+                    }
+            except Exception:
+                legacy = {}
+
+            gp = GlobalPaths.from_mapping(data.GLOBAL_PATHS or {})
+
+            return {"legacy": legacy, "entries": gp.to_primitive()}
         except Exception as e:
             # Retorna JSON com erro para evitar resposta HTML que quebra o parse no frontend
             return {"error": f"failed to list global_paths: {str(e)}"}

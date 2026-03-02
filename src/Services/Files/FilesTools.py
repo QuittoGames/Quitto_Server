@@ -393,6 +393,31 @@ class FilesTools:
 
 
 	@staticmethod
+	def forward_to_machines(path: str, params: dict = None, timeout: int = 6):
+		"""Attempt to forward an HTTP GET to all known machines using their `url_connect`.
+
+		Returns the first parsed JSON response on success, or None if no machine responded.
+		"""
+		params = params or {}
+		for m in getattr(data, 'MACHINES', []) or []:
+			try:
+				url_connect = getattr(m, 'url_connect', None)
+				if not url_connect:
+					continue
+				url = str(url_connect).rstrip('/') + path
+				r = requests.get(url, params=params, timeout=timeout)
+				if r.ok:
+					try:
+						return r.json()
+					except Exception:
+						return {"ok": True, "raw": r.text}
+			except requests.RequestException as E:
+				logger.debug("forward_to_machines failed for %s: %s", getattr(m, 'url_connect', None), E)
+				continue
+		return None
+
+
+	@staticmethod
 	def resolve_machine(machine_id: Optional[int] = None, mac: Optional[str] = None) -> Optional[Machine]:
 		"""Resolve a Machine instance by id or MAC, preferring in-memory `data.MACHINES`.
 

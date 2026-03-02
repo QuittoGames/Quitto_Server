@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from data import data
+from models.GlobalPaths import GlobalPaths
 import os
 import datetime
 import logging
@@ -83,7 +84,7 @@ class MainService:
                 "version": "1.2.0",
                 "protocol": "mcp"
             },
-            "bases": {k: str(v) for k, v in data.GLOBAL_PATHS.items()},
+                "bases": GlobalPaths.from_mapping(data.GLOBAL_PATHS or {}).to_simple_map(),
             "routes": {
                 "files": [
                     "GET /files/list/{base}",
@@ -128,7 +129,7 @@ class MainService:
                 "tool_registry_version": "1.0",
                 "protocol": "mcp"
             },
-            "bases": {k: str(v) for k, v in data.GLOBAL_PATHS.items()},
+            "bases": GlobalPaths.from_mapping(data.GLOBAL_PATHS or {}).to_simple_map(),
             "routes": {
                 "files": [
                     "GET /files/list/{base}",

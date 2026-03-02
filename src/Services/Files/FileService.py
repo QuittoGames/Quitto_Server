@@ -83,6 +83,10 @@ class FileService:
         entry = data.GLOBAL_PATHS.get(base)
         root = resolve_base_root(entry)
         if not root:
+            # Try forwarding to machines if the base isn't local
+            forwarded = FilesTools.forward_to_machines(f"/files/list/{base}")
+            if forwarded is not None:
+                return forwarded
             return {"error": "base not found", "available": list(data.GLOBAL_PATHS.keys())}
 
         files = [str(p.relative_to(root)) for p in root.rglob("*.md")]
@@ -94,6 +98,10 @@ class FileService:
         """Lê conteúdo de um arquivo"""
         candidate, err = _get_file_path_for(base, path)
         if err:
+            # If local resolution failed, try forwarding to machines
+            forwarded = FilesTools.forward_to_machines(f"/files/read/{base}", params={"path": path})
+            if forwarded is not None:
+                return forwarded
             return {"error": err}
         return _read_file_path(candidate)
 
