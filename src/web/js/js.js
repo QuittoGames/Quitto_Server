@@ -165,16 +165,34 @@ async function fetchBases() {
         const container = document.getElementById('bases-list');
         container.innerHTML = '';
 
-        for (const [name, info] of Object.entries(data)) {
-            // info.path é sempre um array de valores (paths e possivelmente outros objetos)
-            let pathStr = '';
-            if (Array.isArray(info.path)) {
-                pathStr = info.path.map(p => typeof p === 'string' ? p : (typeof p === 'object' ? JSON.stringify(p) : String(p))).join(', ');
-            } else {
-                pathStr = info.path;
+        // Support both legacy mapping and new `entries` array returned by the
+        // backend. New format: { legacy: {...}, entries: [{base, path, machine}, ...] }
+        let map = {};
+        if (data && Array.isArray(data.entries)) {
+            for (const e of data.entries) {
+                const name = e.base || '(unknown)';
+                if (!map[name]) map[name] = { paths: [], machines: [] };
+                if (e.path) map[name].paths.push(e.path);
+                if (e.machine) map[name].machines.push(e.machine);
             }
-            const status     = info.exists && info.readable ? 'ok' : 'error';
-            const statusText = status === 'ok' ? 'OK' : 'ERRO';
+        } else {
+            // legacy response: { BASE: { path: [...], exists: bool, readable: bool }, ... }
+            for (const [name, info] of Object.entries(data)) {
+                map[name] = { paths: Array.isArray(info.path) ? info.path.slice() : [info.path], machines: [] };
+                // keep legacy flags
+                map[name].exists = info.exists;
+                map[name].readable = info.readable;
+            }
+        }
+
+        for (const [name, info] of Object.entries(map)) {
+            const pathStr = (info.paths || []).map(p => typeof p === 'string' ? p : JSON.stringify(p)).join(', ');
+            // determine simple status: if legacy flags exist use them, otherwise remote if machines present
+            let status = 'unknown';
+            if (info.exists === true && info.readable === true) status = 'ok';
+            else if (info.exists === false || info.readable === false) status = 'error';
+            else if ((info.machines || []).length > 0) status = 'remote';
+            const statusText = status === 'ok' ? 'OK' : (status === 'remote' ? 'REMOTE' : 'N/A');
             container.innerHTML += `
                 <div class="base-item">
                     <span>${name}</span>

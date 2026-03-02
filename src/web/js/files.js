@@ -146,19 +146,32 @@ async function loadBases() {
         const container = document.getElementById('fm-bases');
         container.innerHTML = '';
 
-        for (const [name, info] of Object.entries(data)) {
-            // info.path pode ser uma lista (nova estrutura)
-            let pathStr = '';
-            if (Array.isArray(info.path)) {
-                pathStr = info.path.map(p => typeof p === 'string' ? p : JSON.stringify(p)).join(', ');
-            } else {
-                pathStr = info.path;
+        // Accept both legacy mapping and new `entries` array.
+        const map = {};
+        if (data && Array.isArray(data.entries)) {
+            for (const e of data.entries) {
+                const name = e.base || '(unknown)';
+                if (!map[name]) map[name] = { paths: [], machines: [] };
+                if (e.path) map[name].paths.push(e.path);
+                if (e.machine) map[name].machines.push(e.machine);
             }
-            const ok = info.exists && info.readable;
+        } else {
+            for (const [name, info] of Object.entries(data)) {
+                map[name] = { paths: Array.isArray(info.path) ? info.path.slice() : [info.path], machines: [], exists: info.exists, readable: info.readable };
+            }
+        }
+
+        for (const [name, info] of Object.entries(map)) {
+            const pathStr = (info.paths || []).map(p => typeof p === 'string' ? p : JSON.stringify(p)).join(', ');
+            const hasRemote = (info.machines || []).length > 0;
+            const ok = info.exists === true && info.readable === true;
+            const disabled = !(ok || hasRemote);
+            const icon = ok ? '📂' : (hasRemote ? '🌐' : '⚠');
+            const clickHandler = disabled ? '' : `selectBase('${name}')`;
+
             container.innerHTML += `
-                <div class="fm-base-item ${currentBase === name ? 'active' : ''} ${!ok ? 'disabled' : ''}" 
-                     onclick="${ok ? `selectBase('${name}')` : ''}">
-                    <span class="fm-base-icon">${ok ? '📂' : '⚠'}</span>
+                <div class="fm-base-item ${currentBase === name ? 'active' : ''} ${disabled ? 'disabled' : ''}" onclick="${clickHandler}">
+                    <span class="fm-base-icon">${icon}</span>
                     <div class="fm-base-info">
                         <span class="fm-base-name">${name}</span>
                         <span class="fm-base-path">${pathStr}</span>

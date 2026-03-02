@@ -165,7 +165,7 @@ class data:
                 url_connect = getattr(m, 'url_connect', None)
                 if not url_connect:
                     continue
-                resp = requests.get(str(url_connect).rstrip('/') + '/api/global_paths', timeout=timeout)
+                resp = requests.get(str(url_connect).rstrip('/') + '/files/global_paths', timeout=timeout)
                 if not resp.ok:
                     continue
                 j = resp.json()
